@@ -1,26 +1,31 @@
 {
-  "name": "kunda-web",
-  "version": "0.1.0",
+  "name": "kunda-properties",
+  "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "next": "16.2.2",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "dev:web": "turbo run dev --filter=@kunda/web",
+    "dev:gateway": "turbo run dev --filter=@kunda/gateway",
+    "dev:auth": "turbo run dev --filter=@kunda/auth",
+    "dev:listings": "turbo run dev --filter=@kunda/listings",
+    "dev:escrow": "turbo run dev --filter=@kunda/escrow",
+    "dev:documents": "turbo run dev --filter=@kunda/documents",
+    "dev:notifications": "turbo run dev --filter=@kunda/notifications",
+    "dev:services": "turbo run dev --filter=@kunda/gateway --filter=@kunda/auth --filter=@kunda/listings --filter=@kunda/escrow --filter=@kunda/documents --filter=@kunda/notifications",
+    "dev:backend": "turbo run dev --filter=@kunda/auth --filter=@kunda/listings",
+    "dev:all": "turbo run dev --filter=@kunda/web --filter=@kunda/auth",
+    "dev:mobile": "turbo run dev --filter=@kunda/mobile",
+    "dev:admin": "turbo run dev --filter=@kunda/admin"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.2",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  }
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.6",
+    "turbo": "^2.9.3",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "pnpm@10.33.0"
 }

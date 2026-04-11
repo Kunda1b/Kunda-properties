@@ -1,0 +1,225 @@
+@import "tailwindcss";
+
+/* ─── Aliases (for JS inline style compatibility) ─── */
+:root {
+  --kunda-green: var(--color-kunda-forest);
+  --kunda-green-light: var(--color-kunda-forest-soft);
+}
+
+/* ─── Kunda Design Tokens (Tailwind v4 @theme) ─── */
+@theme {
+  /* Brand Colors */
+  --color-kunda-forest: #0f6e56;
+  --color-kunda-forest-deep: #0b4f3f;
+  --color-kunda-forest-soft: #dceee8;
+  --color-kunda-forest-glow: rgba(15, 110, 86, 0.12);
+  --color-kunda-gold: #ba7517;
+  --color-kunda-gold-soft: #f6e7cf;
+  --color-kunda-ink: #18261f;
+  --color-kunda-muted: #627067;
+  --color-kunda-clay: #efe0d3;
+  --color-kunda-background: #f6f1e8;
+  --color-kunda-border: rgba(24, 38, 31, 0.1);
+  --color-kunda-surface: rgba(255, 255, 255, 0.85);
+  --color-kunda-white: #ffffff;
+
+  /* Fonts */
+  --font-body: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+  --font-display: var(--font-playfair), "Playfair Display", Georgia, serif;
+
+  /* Shadows */
+  --shadow-soft: 0 18px 50px rgba(24, 38, 31, 0.08);
+  --shadow-glow: 0 16px 45px rgba(15, 110, 86, 0.22);
+  --shadow-card: 0 4px 24px rgba(24, 38, 31, 0.06);
+  --shadow-card-hover: 0 12px 40px rgba(24, 38, 31, 0.12);
+  --shadow-nav: 0 1px 12px rgba(24, 38, 31, 0.06);
+
+  /* Border radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
+  --radius-full: 9999px;
+
+  /* Animations */
+  --animate-fade-in: fade-in 0.5s ease-out;
+  --animate-slide-up: slide-up 0.5s ease-out;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-soft: pulse-soft 2s ease-in-out infinite;
+  --animate-shimmer: shimmer 2s linear infinite;
+}
+
+/* ─── Keyframes ─── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ─── Base Styles ─── */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-kunda-background);
+  color: var(--color-kunda-ink);
+  line-height: 1.6;
+}
+
+::selection {
+  background-color: var(--color-kunda-forest-soft);
+  color: var(--color-kunda-forest-deep);
+}
+
+/* ─── Surface Card (Glassmorphism) ─── */
+.surface-card {
+  background: var(--color-kunda-surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-kunda-border);
+}
+
+/* ─── Buttons ─── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.75rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--color-kunda-forest) 0%, var(--color-kunda-forest-deep) 100%);
+  color: white;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(15, 110, 86, 0.25);
+  cursor: pointer;
+  border: none;
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-glow);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.75rem;
+  border-radius: var(--radius-md);
+  background: var(--color-kunda-white);
+  color: var(--color-kunda-ink);
+  font-weight: 600;
+  font-size: 0.875rem;
+  border: 1px solid var(--color-kunda-border);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.btn-secondary:hover {
+  background: var(--color-kunda-forest-soft);
+  border-color: var(--color-kunda-forest);
+  color: var(--color-kunda-forest-deep);
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-kunda-muted);
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+.btn-ghost:hover {
+  color: var(--color-kunda-ink);
+  background: rgba(24, 38, 31, 0.04);
+}
+
+/* ─── Input fields ─── */
+.input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-kunda-border);
+  background: var(--color-kunda-white);
+  color: var(--color-kunda-ink);
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  outline: none;
+}
+.input-field::placeholder {
+  color: var(--color-kunda-muted);
+}
+.input-field:focus {
+  border-color: var(--color-kunda-forest);
+  box-shadow: 0 0 0 3px var(--color-kunda-forest-glow);
+}
+
+/* ─── Badge ─── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.badge-green {
+  background: var(--color-kunda-forest-soft);
+  color: var(--color-kunda-forest);
+}
+.badge-gold {
+  background: var(--color-kunda-gold-soft);
+  color: var(--color-kunda-gold);
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-kunda-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-kunda-muted);
+}

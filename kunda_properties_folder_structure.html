@@ -1,0 +1,332 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.root{padding:10px 4px 16px}
+.toolbar{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
+.tb-btn{font-size:11px;font-family:var(--font-sans);padding:3px 10px;border:.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);color:var(--color-text-secondary);cursor:pointer}
+.tb-btn:hover{background:var(--color-background-secondary);color:var(--color-text-primary)}
+.tb-sep{font-size:11px;color:var(--color-text-tertiary);margin:0 2px}
+.layer-pills{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.pill{font-size:10px;font-family:var(--font-sans);font-weight:500;padding:2px 9px;border-radius:99px;cursor:pointer;border:.5px solid transparent;transition:opacity .15s}
+.pill.off{opacity:.35}
+.tree{line-height:1}
+.node{display:flex;flex-direction:column}
+.row{display:flex;align-items:center;gap:0;padding:1.5px 0;cursor:pointer;border-radius:4px}
+.row:hover .label{color:var(--color-text-primary)}
+.indent{display:inline-block;flex-shrink:0}
+.toggle{width:16px;flex-shrink:0;font-size:11px;color:var(--color-text-tertiary);text-align:center;font-family:var(--font-sans)}
+.label{font-size:12px;color:var(--color-text-secondary);font-family:var(--font-mono);white-space:nowrap}
+.label.dir{font-weight:500;color:var(--color-text-primary)}
+.label.root-label{font-size:13px;font-weight:500}
+.badge{font-size:9px;font-family:var(--font-sans);font-weight:500;padding:1px 6px;border-radius:99px;margin-left:7px}
+.desc{font-size:11px;font-family:var(--font-sans);color:var(--color-text-tertiary);margin-left:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.children{display:flex;flex-direction:column}
+.children.hidden{display:none}
+.detail-bar{margin-top:12px;padding:10px 12px;background:var(--color-background-secondary);border:.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);font-family:var(--font-sans);display:none}
+.detail-bar.on{display:block}
+.db-path{font-size:11px;font-family:var(--font-mono);color:var(--color-text-tertiary);margin-bottom:4px}
+.db-desc{font-size:13px;color:var(--color-text-primary)}
+</style>
+
+<div class="root">
+<div class="toolbar">
+  <button class="tb-btn" onclick="expandAll()">Expand all</button>
+  <button class="tb-btn" onclick="collapseAll()">Collapse all</button>
+  <span class="tb-sep">|</span>
+  <span style="font-size:11px;font-family:var(--font-sans);color:var(--color-text-tertiary)">Filter by layer:</span>
+  <div class="layer-pills" id="pills"></div>
+</div>
+<div class="tree" id="tree"></div>
+<div class="detail-bar" id="detail-bar">
+  <div class="db-path" id="db-path"></div>
+  <div class="db-desc" id="db-desc"></div>
+</div>
+</div>
+
+<script>
+const LAYERS = {
+  clients:  {label:'Clients',  bg:'#E1F5EE', color:'#085041', border:'#5DCAA5'},
+  gateway:  {label:'Gateway',  bg:'#EEEDFE', color:'#3C3489', border:'#AFA9EC'},
+  services: {label:'Services', bg:'#E6F1FB', color:'#0C447C', border:'#85B7EB'},
+  data:     {label:'Data',     bg:'#FAEEDA', color:'#633806', border:'#EF9F27'},
+  external: {label:'External', bg:'#FAECE7', color:'#712B13', border:'#F0997B'},
+  shared:   {label:'Shared',   bg:'#F1EFE8', color:'#444441', border:'#B4B2A9'},
+};
+
+const TREE = {
+  name:'kunda-properties', type:'dir', layer:'shared',
+  desc:'Monorepo root — Turborepo + pnpm workspaces · "Kunda" means home/compound in Mandinka',
+  open:true,
+  children:[
+    {name:'apps', type:'dir', layer:'shared', desc:'Deployable client applications', open:true, children:[
+      {name:'web', type:'dir', layer:'clients', desc:'Diaspora web app — Next.js (App Router), TypeScript, Tailwind, PWA', open:false, children:[
+        {name:'public', type:'dir', desc:'Static assets, Kunda logo, favicon, manifest.json'},
+        {name:'src', type:'dir', open:false, children:[
+          {name:'app', type:'dir', desc:'Next.js App Router — pages and layouts'},
+          {name:'components', type:'dir', desc:'Reusable React UI components', children:[
+            {name:'listings', type:'dir', desc:'Property card, gallery, map pin, filters'},
+            {name:'escrow', type:'dir', desc:'Escrow status tracker, fund confirmation modal'},
+            {name:'documents', type:'dir', desc:'Document viewer, e-sign prompt'},
+            {name:'auth', type:'dir', desc:'Login, register, OTP verification'},
+            {name:'ui', type:'dir', desc:'Kunda design system primitives (button, input, badge)'},
+          ]},
+          {name:'hooks', type:'dir', desc:'Custom React hooks (useListings, useEscrow, useAuth)'},
+          {name:'lib', type:'dir', desc:'API client, auth helpers, Stripe.js wrapper'},
+          {name:'store', type:'dir', desc:'Zustand global state (user, filters, saved listings)'},
+          {name:'types', type:'dir', desc:'App-local TypeScript interfaces'},
+        ]},
+        {name:'next.config.ts', type:'file', desc:'Next.js config — i18n (EN/Wolof), image domains, PWA plugin'},
+        {name:'tailwind.config.ts', type:'file', desc:'Kunda brand theme — colors, fonts, spacing scale'},
+      ]},
+      {name:'mobile', type:'dir', layer:'clients', desc:'Agent mobile app — React Native, Expo, offline-first', open:false, children:[
+        {name:'src', type:'dir', open:false, children:[
+          {name:'screens', type:'dir', desc:'ListingCreate, PropertyDetail, Chat, Profile, VisitSchedule'},
+          {name:'components', type:'dir', desc:'Camera picker, map view, doc scanner, sync status bar'},
+          {name:'navigation', type:'dir', desc:'React Navigation stack and tab config'},
+          {name:'offline', type:'dir', desc:'SQLite schema, sync queue, background fetch logic'},
+          {name:'hooks', type:'dir', desc:'useSyncQueue, useCamera, useOfflineListings'},
+          {name:'lib', type:'dir', desc:'API client with offline retry, Cloudinary upload helper'},
+        ]},
+        {name:'app.config.ts', type:'file', desc:'Expo config — permissions, bundle ID, OTA updates'},
+      ]},
+      {name:'admin', type:'dir', layer:'clients', desc:'Kunda ops dashboard — React, role-based access, VPN-gated', open:false, children:[
+        {name:'src', type:'dir', open:false, children:[
+          {name:'pages', type:'dir', desc:'KYC queue, listing moderation, escrow oversight, analytics'},
+          {name:'components', type:'dir', desc:'DataTable, KYC review card, dispute panel, charts'},
+          {name:'lib', type:'dir', desc:'Privileged API client, role guard HOC'},
+        ]},
+      ]},
+    ]},
+    {name:'services', type:'dir', layer:'services', desc:'Backend microservices — each independently deployable', open:true, children:[
+      {name:'gateway', type:'dir', layer:'gateway', desc:'API gateway — JWT auth, routing, rate limiting, versioning', open:false, children:[
+        {name:'src', type:'dir', open:false, children:[
+          {name:'middleware', type:'dir', desc:'JWT validation, rate limiter, CORS, audit logger'},
+          {name:'routes', type:'dir', desc:'Route table — maps paths to upstream service URLs'},
+          {name:'plugins', type:'dir', desc:'Kong plugin configs or Express plugin registry'},
+          {name:'index.ts', type:'file', desc:'Gateway entry point — Express/Kong bootstrap'},
+        ]},
+        {name:'Dockerfile', type:'file', desc:'Multi-stage build for gateway container'},
+      ]},
+      {name:'auth', type:'dir', layer:'services', desc:'Auth & KYC — sessions, OTP, Smile Identity integration', open:false, children:[
+        {name:'src', type:'dir', open:false, children:[
+          {name:'controllers', type:'dir', desc:'register, login, logout, verifyOTP, submitKYC'},
+          {name:'services', type:'dir', desc:'TokenService, OTPService, KYCService, SessionService'},
+          {name:'integrations', type:'dir', desc:'SmileIdentityClient, TwilioOTPClient'},
+          {name:'middleware', type:'dir', desc:'requireAuth, requireKYC, requireRole guards'},
+          {name:'models', type:'dir', desc:'User, KYCRecord, Session — Prisma models'},
+          {name:'routes', type:'dir', desc:'Express route definitions'},
+        ]},
+        {name:'prisma', type:'dir', desc:'schema.prisma + migrations for auth schema'},
+        {name:'Dockerfile', type:'file'},
+      ]},
+      {name:'listings', type:'dir', layer:'services', desc:'Listings — CRUD, geo search (PostGIS), image pipeline', open:false, children:[
+        {name:'src', type:'dir', open:false, children:[
+          {name:'controllers', type:'dir', desc:'createListing, getListing, searchListings, updateListing'},
+          {name:'services', type:'dir', desc:'ListingService, GeoService, ImageService'},
+          {name:'integrations', type:'dir', desc:'CloudinaryClient, LandRegistryWebhookHandler'},
+          {name:'models', type:'dir', desc:'Listing, Photo, AgentProfile — Prisma models'},
+          {name:'routes', type:'dir', desc:'REST routes + query param validation (Zod)'},
+        ]},
+        {name:'prisma', type:'dir', desc:'schema.prisma with PostGIS extensions + migrations'},
+        {name:'Dockerfile', type:'file'},
+      ]},
+      {name:'escrow', type:'dir', layer:'services', desc:'Escrow — XState state machine, fund lifecycle, payouts', open:false, children:[
+        {name:'src', type:'dir', open:false, children:[
+          {name:'machine', type:'dir', desc:'XState escrow machine — states, guards, actions'},
+          {name:'controllers', type:'dir', desc:'initiateEscrow, fundEscrow, releaseFunds, openDispute'},
+          {name:'services', type:'dir', desc:'EscrowService, FeeCalculator, AuditLogger'},
+          {name:'integrations', type:'dir', desc:'StripeWebhookHandler, WaveWebhookHandler'},
+          {name:'models', type:'dir', desc:'EscrowTransaction, AuditEvent — Prisma models'},
+          {name:'routes', type:'dir', desc:'REST routes for escrow operations'},
+        ]},
+        {name:'prisma', type:'dir', desc:'schema.prisma for escrow + audit event tables'},
+        {name:'Dockerfile', type:'file'},
+      ]},
+      {name:'documents', type:'dir', layer:'services', desc:'Documents — contract generation, e-sign, S3 storage', open:false, children:[
+        {name:'src', type:'dir', open:false, children:[
+          {name:'templates', type:'dir', desc:'PDF sale agreement templates (PDFKit) — EN and Wolof'},
+          {name:'controllers', type:'dir', desc:'generateContract, signDocument, getDocument'},
+          {name:'services', type:'dir', desc:'DocumentService, ESignService, StorageService'},
+          {name:'integrations', type:'dir', desc:'DocuSignClient, S3Client'},
+          {name:'models', type:'dir', desc:'Document, Signature — Prisma models'},
+          {name:'routes', type:'dir', desc:'REST routes for document lifecycle'},
+        ]},
+        {name:'Dockerfile', type:'file'},
+      ]},
+      {name:'notifications', type:'dir', layer:'external', desc:'Notifications — BullMQ consumer, Twilio, SendGrid, WhatsApp', open:false, children:[
+        {name:'src', type:'dir', open:false, children:[
+          {name:'workers', type:'dir', desc:'BullMQ consumers — email.worker.ts, sms.worker.ts, whatsapp.worker.ts'},
+          {name:'templates', type:'dir', desc:'Message templates per event (escrow funded, doc ready, OTP)'},
+          {name:'integrations', type:'dir', desc:'TwilioClient, SendGridClient, WhatsAppBusinessClient'},
+          {name:'queue', type:'dir', desc:'Queue definitions, job types, retry/backoff config'},
+        ]},
+        {name:'Dockerfile', type:'file'},
+      ]},
+    ]},
+    {name:'packages', type:'dir', layer:'shared', desc:'Shared internal packages consumed across apps and services', open:true, children:[
+      {name:'db', type:'dir', layer:'data', desc:'Prisma client, shared schema, migration tooling', open:false, children:[
+        {name:'prisma', type:'dir', desc:'Master schema.prisma + all migrations'},
+        {name:'src', type:'dir', desc:'Generated Prisma client + typed query helpers'},
+        {name:'seed', type:'dir', desc:'Dev seed scripts — Gambian listings, test users, escrow fixtures'},
+      ]},
+      {name:'types', type:'dir', layer:'shared', desc:'Shared TypeScript types — used by all apps and services', open:false, children:[
+        {name:'src', type:'dir', open:false, children:[
+          {name:'listing.types.ts', type:'file', desc:'Listing, PropertyType, GeoPoint, ListingStatus'},
+          {name:'escrow.types.ts', type:'file', desc:'EscrowState, TransactionEvent, FeeBreakdown'},
+          {name:'user.types.ts', type:'file', desc:'User, KYCStatus, Role, DiasporaProfile'},
+          {name:'api.types.ts', type:'file', desc:'API request/response envelope types'},
+        ]},
+      ]},
+      {name:'validators', type:'dir', layer:'shared', desc:'Zod schemas shared between frontend forms and API controllers', open:false, children:[
+        {name:'src', type:'dir', open:false, children:[
+          {name:'listing.schema.ts', type:'file', desc:'createListing, updateListing, searchQuery schemas'},
+          {name:'escrow.schema.ts', type:'file', desc:'initiateEscrow, fundEscrow schemas'},
+          {name:'user.schema.ts', type:'file', desc:'register, login, kycSubmission schemas'},
+        ]},
+      ]},
+      {name:'backend', type:'dir', layer:'shared', desc:'Shared HTTP/proxy helpers — optional; domain logic lives in services/*', open:false, children:[
+        {name:'src', type:'dir', desc:'jwt, rate-limit, proxy utilities'},
+      ]},
+      {name:'config', type:'dir', layer:'shared', desc:'Shared runtime config — env validation, constants', open:false, children:[
+        {name:'src', type:'dir', open:false, children:[
+          {name:'env.ts', type:'file', desc:'Zod-validated environment variables — throws on missing keys'},
+          {name:'constants.ts', type:'file', desc:'Fee rates, KYC TTL, escrow timeouts, supported currencies (GMD/GBP/EUR/USD)'},
+          {name:'logger.ts', type:'file', desc:'Pino logger factory — structured JSON, request ID correlation'},
+        ]},
+      ]},
+      {name:'ui', type:'dir', layer:'clients', desc:'Kunda shared React design system — consumed by web and admin', open:false, children:[
+        {name:'src', type:'dir', open:false, children:[
+          {name:'components', type:'dir', desc:'Button, Input, Modal, Badge, Tabs, Toast, MapPin'},
+          {name:'tokens', type:'dir', desc:'Kunda color tokens, spacing scale, typography config'},
+          {name:'hooks', type:'dir', desc:'useToast, useModal, useMediaQuery'},
+        ]},
+      ]},
+    ]},
+    {name:'infra', type:'dir', layer:'shared', desc:'Infrastructure-as-code — Docker, Terraform, CI/CD', open:false, children:[
+      {name:'docker', type:'dir', desc:'docker-compose.yml for local dev — all services + Postgres + Redis'},
+      {name:'terraform', type:'dir', desc:'AWS/GCP modules — VPC, RDS, ElastiCache, S3, ECS clusters', children:[
+        {name:'modules', type:'dir', desc:'Reusable Terraform modules per resource type'},
+        {name:'envs', type:'dir', desc:'staging/ and production/ tfvars and backend config'},
+      ]},
+      {name:'k8s', type:'dir', desc:'Kubernetes manifests — Deployment, Service, Ingress, HPA per service'},
+      {name:'.github', type:'dir', desc:'GitHub Actions — CI lint/test, CD staging deploy, release workflow', children:[
+        {name:'workflows', type:'dir', desc:'ci.yml, deploy-staging.yml, deploy-prod.yml, dependency-review.yml'},
+      ]},
+    ]},
+    {name:'turbo.json', type:'file', layer:'shared', desc:'Turborepo pipeline — build, test, lint task dependency graph'},
+    {name:'pnpm-workspace.yaml', type:'file', layer:'shared', desc:'pnpm workspace definition — lists all apps/ and packages/'},
+    {name:'.env.example', type:'file', layer:'shared', desc:'All required environment variables with inline docs — copy to .env.local'},
+    {name:'docker-compose.yml', type:'file', layer:'shared', desc:'Root compose shortcut — delegates to infra/docker/'},
+    {name:'README.md', type:'file', layer:'shared', desc:'Kunda Properties — project overview, local setup, deployment guide'},
+  ]
+};
+
+const FILE_ICON = {
+  '.ts':'ts', '.tsx':'tsx', '.json':'{}', '.yaml':'~', '.yml':'~',
+  '.md':'¶', '.prisma':'◈', Dockerfile:'⊞', default:'·'
+};
+
+function fileIcon(name){
+  if(name==='Dockerfile') return '⊞';
+  const ext = name.match(/(\.[^.]+)$/)?.[1]||'';
+  return FILE_ICON[ext]||FILE_ICON.default;
+}
+
+let activeLayer = null;
+let openState = {};
+
+function getPath(node, path){ return path ? path+'/'+node.name : node.name; }
+
+function renderNode(node, depth, path){
+  const fullPath = getPath(node, path);
+  const isDir = node.type === 'dir';
+  const id = 'n-'+fullPath.replace(/[^a-zA-Z0-9]/g,'-');
+  const open = openState[fullPath] !== undefined ? openState[fullPath] : (node.open !== false && depth < 2);
+  const layer = node.layer || null;
+  const layerInfo = layer ? LAYERS[layer] : null;
+
+  let html = `<div class="node" id="${id}" data-path="${fullPath}" data-layer="${layer||''}" style="transition:opacity .2s">`;
+  html += `<div class="row" onclick="toggleNode('${fullPath}','${id}','${isDir}')"
+    onmouseenter="showDetail('${fullPath}','${(node.desc||'').replace(/'/g,'&#39;')}')">`;
+
+  html += `<span class="indent" style="width:${depth*14}px"></span>`;
+  html += `<span class="toggle" id="tog-${id}">${isDir ? (open?'▾':'▸') : ''}</span>`;
+
+  const fileTag = !isDir ? `<span style="font-size:10px;color:var(--color-text-tertiary);font-family:var(--font-mono);margin-right:5px">${fileIcon(node.name)}</span>` : '';
+  html += `<span class="label ${isDir?'dir':''} ${depth===0?'root-label':''}">${fileTag}${node.name}</span>`;
+
+  if(layerInfo && depth <= 1){
+    html += `<span class="badge" style="background:${layerInfo.bg};color:${layerInfo.color};border:.5px solid ${layerInfo.border}">${layerInfo.label}</span>`;
+  }
+  if(node.desc && depth > 0){
+    html += `<span class="desc">${node.desc}</span>`;
+  }
+  html += `</div>`;
+
+  if(isDir && node.children){
+    html += `<div class="children ${open?'':'hidden'}" id="ch-${id}">`;
+    node.children.forEach(child => { html += renderNode(child, depth+1, fullPath); });
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function toggleNode(path, id, isDir){
+  if(isDir!=='true') return;
+  const ch = document.getElementById('ch-'+id);
+  const tog = document.getElementById('tog-'+id);
+  if(!ch) return;
+  const hidden = ch.classList.contains('hidden');
+  ch.classList.toggle('hidden', !hidden);
+  if(tog) tog.textContent = hidden ? '▾' : '▸';
+  openState[path] = hidden;
+}
+
+let detailTimer = null;
+function showDetail(path, desc){
+  if(!desc) return;
+  clearTimeout(detailTimer);
+  detailTimer = setTimeout(() => {
+    document.getElementById('db-path').textContent = path;
+    document.getElementById('db-desc').textContent = desc;
+    document.getElementById('detail-bar').classList.add('on');
+  }, 100);
+}
+
+function expandAll(){
+  document.querySelectorAll('.children').forEach(el => el.classList.remove('hidden'));
+  document.querySelectorAll('[id^="tog-"]').forEach(el => { if(el.textContent==='▸') el.textContent='▾'; });
+}
+function collapseAll(){
+  document.querySelectorAll('[id^="ch-"]').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('[id^="tog-"]').forEach(el => { if(el.textContent==='▾') el.textContent='▸'; });
+}
+
+function filterLayer(layer){
+  activeLayer = activeLayer === layer ? null : layer;
+  document.querySelectorAll('#pills .pill').forEach(p => {
+    p.classList.toggle('off', !!activeLayer && p.dataset.layer !== activeLayer);
+  });
+  document.querySelectorAll('.node[data-layer]').forEach(n => {
+    const nl = n.dataset.layer;
+    n.style.opacity = (!activeLayer || nl === activeLayer || nl === '' || nl === 'shared') ? '1' : '0.15';
+  });
+}
+
+function buildPills(){
+  const pills = document.getElementById('pills');
+  Object.entries(LAYERS).forEach(([key, val]) => {
+    const p = document.createElement('span');
+    p.className = 'pill';
+    p.dataset.layer = key;
+    p.textContent = val.label;
+    p.style.cssText = `background:${val.bg};color:${val.color};border-color:${val.border}`;
+    p.onclick = () => filterLayer(key);
+    pills.appendChild(p);
+  });
+}
+
+document.getElementById('tree').innerHTML = renderNode(TREE, 0, '');
+buildPills();
+</script>

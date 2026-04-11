@@ -1,0 +1,4 @@
+version: '3.9'
+
+include:
+  - infra/docker/docker-compose.yml

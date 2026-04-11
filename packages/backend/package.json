@@ -1,0 +1,25 @@
+{
+  "name": "@kunda/backend",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.908.0",
+    "@fastify/multipart": "^9.2.1",
+    "@kunda/config": "workspace:*",
+    "@kunda/db": "workspace:*",
+    "fastify": "^5.6.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,51 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: kunda_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kunda
+      POSTGRES_PASSWORD: kunda_dev_password
+      POSTGRES_DB: kunda_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - kunda_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: kunda_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - kunda_redis_data:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: kunda_mailpit
+    restart: unless-stopped
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+
+  minio:
+    image: minio/minio:latest
+    container_name: kunda_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: kunda_minio_user
+      MINIO_ROOT_PASSWORD: kunda_minio_password
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - kunda_minio_data:/data
+
+volumes:
+  kunda_postgres_data:
+  kunda_redis_data:
+  kunda_minio_data:
