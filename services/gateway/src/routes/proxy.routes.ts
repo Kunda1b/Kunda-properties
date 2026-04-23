@@ -6,7 +6,7 @@ import * as configModule from "@kunda/config";
 import { authRateLimit, escrowRateLimit } from "../middleware/rate-limit.middleware";
 import { SERVICE_REGISTRY, findService } from "../utils/registry";
 
-const { logger } = ("default" in configModule ? configModule.default : configModule) as typeof import("@kunda/config");
+const { logger, SERVICE_PORTS } = ("default" in configModule ? configModule.default : configModule) as typeof import("@kunda/config");
 
 const router = Router();
 
@@ -31,7 +31,7 @@ function buildServiceUnavailableHandler(serviceName: string) {
 
 export const stripeWebhookProxy = createProxyMiddleware({
   pathFilter: "/api/escrow/webhook/stripe",
-  target: "http://localhost:4003",
+  target: `http://localhost:${SERVICE_PORTS.ESCROW}`,
   changeOrigin: true,
   pathRewrite: (path) => path.replace("/api/escrow", "/escrow"),
   on: {

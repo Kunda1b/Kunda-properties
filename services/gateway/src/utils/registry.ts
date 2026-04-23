@@ -1,3 +1,5 @@
+import { SERVICE_PORTS } from "@kunda/config";
+
 export type ServiceConfig = {
   healthPath: string;
   name: string;
@@ -8,25 +10,25 @@ export type ServiceConfig = {
 export const SERVICE_REGISTRY: ServiceConfig[] = [
   {
     name: "auth",
-    target: "http://localhost:4001",
+    target: `http://localhost:${SERVICE_PORTS.AUTH}`,
     pathPrefix: "/api/auth",
     healthPath: "/health",
   },
   {
     name: "listings",
-    target: "http://localhost:4002",
+    target: `http://localhost:${SERVICE_PORTS.LISTINGS}`,
     pathPrefix: "/api/listings",
     healthPath: "/health",
   },
   {
     name: "escrow",
-    target: "http://localhost:4003",
+    target: `http://localhost:${SERVICE_PORTS.ESCROW}`,
     pathPrefix: "/api/escrow",
     healthPath: "/health",
   },
   {
     name: "documents",
-    target: "http://localhost:4004",
+    target: `http://localhost:${SERVICE_PORTS.DOCUMENTS}`,
     pathPrefix: "/api/documents",
     healthPath: "/health",
   },

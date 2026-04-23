@@ -1,5 +1,5 @@
-export { prisma } from "./prisma";
-export { getRedisClient, disconnectRedis } from "./redis";
+export { prisma } from "./prisma.js";
+export { getRedisClient, disconnectRedis } from "./redis.js";
 export {
   setSession,
   getSession,
@@ -7,5 +7,5 @@ export {
   deleteAllUserSessions,
   setOTP,
   verifyOTP,
-} from "./session";
-export * from "./property-seed";
+} from "./session.js";
+export * from "./property-seed.js";

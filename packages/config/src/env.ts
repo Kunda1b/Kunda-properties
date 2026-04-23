@@ -7,11 +7,13 @@ function loadWorkspaceEnvFile() {
     return;
   }
 
-  const candidates = [
-    resolve(process.cwd(), ".env"),
-    resolve(process.cwd(), "..", ".env"),
-    resolve(process.cwd(), "..", "..", ".env"),
-  ];
+  const candidates = Array.from(
+    new Set([
+      resolve(process.cwd(), "..", "..", ".env"),
+      resolve(process.cwd(), "..", ".env"),
+      resolve(process.cwd(), ".env"),
+    ]),
+  );
 
   for (const candidate of candidates) {
     if (existsSync(candidate)) {

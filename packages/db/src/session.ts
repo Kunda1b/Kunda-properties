@@ -1,4 +1,4 @@
-import { getRedisClient } from "./redis";
+import { getRedisClient } from "./redis.js";
 
 const SESSION_PREFIX = "session:";
 const OTP_PREFIX = "otp:";

@@ -4,4 +4,4 @@ export {
   getPropertyBySlug,
   listingRegions,
   propertySeedData as properties,
-} from "@kunda/db";
+} from "./seed-data";

@@ -1,9 +1,9 @@
 import { app } from "./app";
-import { logger } from "@kunda/config";
+import { env, logger, SERVICE_PORTS } from "@kunda/config";
 import { prisma } from "@kunda/db";
 import { ensureBucketExists } from "./utils/s3";
 
-const PORT = 4004;
+const PORT = env.PORT === SERVICE_PORTS.GATEWAY ? SERVICE_PORTS.DOCUMENTS : env.PORT;
 
 async function bootstrap() {
   try {

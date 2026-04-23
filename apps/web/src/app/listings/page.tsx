@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import type React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import PropertyCard from "@/components/listings/PropertyCard";
@@ -29,11 +29,6 @@ function ListingsPageContent() {
 
   const [localQuery, setLocalQuery] = useState(urlQuery);
   const [activeType, setActiveType] = useState<PropertyType | "all">(urlType);
-
-  useEffect(() => {
-    setLocalQuery(urlQuery);
-    setActiveType(urlType);
-  }, [urlQuery, urlType]);
 
   const updateURL = useCallback(
     (q: string, type: PropertyType | "all") => {

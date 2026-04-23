@@ -2,10 +2,10 @@ import { app } from "./app";
 import * as configModule from "@kunda/config";
 import * as dbModule from "@kunda/db";
 
-const { env, logger } = ("default" in configModule ? configModule.default : configModule) as typeof import("@kunda/config");
+const { env, logger, SERVICE_PORTS } = ("default" in configModule ? configModule.default : configModule) as typeof import("@kunda/config");
 const { getRedisClient, prisma } = ("default" in dbModule ? dbModule.default : dbModule) as typeof import("@kunda/db");
 
-const PORT = env.PORT === 4000 ? 4003 : env.PORT;
+const PORT = env.PORT === SERVICE_PORTS.GATEWAY ? SERVICE_PORTS.ESCROW : env.PORT;
 
 async function bootstrap() {
   try {

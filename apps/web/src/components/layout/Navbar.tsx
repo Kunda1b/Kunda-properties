@@ -19,16 +19,14 @@ export default function Navbar() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileMenuPath, setMobileMenuPath] = useState(pathname);
+  const isMobileMenuOpen = mobileOpen && mobileMenuPath === pathname;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
 
   return (
     <header
@@ -118,11 +116,14 @@ export default function Navbar() {
         {/* Mobile Hamburger */}
         <button
           type="button"
-          onClick={() => setMobileOpen(!mobileOpen)}
+          onClick={() => {
+            setMobileMenuPath(pathname);
+            setMobileOpen((current) => !current);
+          }}
           className="flex h-10 w-10 items-center justify-center rounded-xl text-kunda-muted transition-colors hover:bg-kunda-forest-soft md:hidden"
           aria-label="Toggle menu"
         >
-          {mobileOpen ? (
+          {isMobileMenuOpen ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
@@ -135,7 +136,7 @@ export default function Navbar() {
       </div>
 
       {/* Mobile Menu */}
-      {mobileOpen && (
+      {isMobileMenuOpen && (
         <div className="border-t border-kunda-border bg-white/95 backdrop-blur-xl md:hidden animate-slide-up">
           <div className="mx-auto max-w-6xl space-y-1 px-5 py-4">
             {NAV_LINKS.map((link) => {

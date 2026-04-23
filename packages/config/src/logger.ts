@@ -1,5 +1,4 @@
-const LEVELS = ["debug", "info", "warn", "error"] as const;
-type Level = (typeof LEVELS)[number];
+type Level = "debug" | "info" | "warn" | "error";
 
 function formatMessage(level: Level, message: string, meta?: object) {
   const timestamp = new Date().toISOString();

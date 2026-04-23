@@ -1,22 +1,36 @@
 import { z } from "zod";
 
+const optionalPhoneSchema = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmedValue = value.trim();
+    return trimmedValue.length > 0 ? trimmedValue : undefined;
+  },
+  z
+    .string()
+    .min(7, "Enter a valid phone number")
+    .max(20, "Phone number is too long")
+    .optional(),
+);
+
 export const registerSchema = z.object({
   fullName: z
     .string()
+    .trim()
     .min(2, "Full name must be at least 2 characters")
     .max(100, "Full name is too long"),
   email: z.string().email("Enter a valid email address").toLowerCase(),
-  phone: z
-    .string()
-    .min(7, "Enter a valid phone number")
-    .max(20, "Phone number is too long"),
+  phone: optionalPhoneSchema,
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
     .max(100, "Password is too long")
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[0-9]/, "Password must contain at least one number"),
-  country: z.string().min(2, "Please select your country"),
+  country: z.string().trim().min(2, "Please select your country"),
 });
 
 export const loginSchema = z.object({

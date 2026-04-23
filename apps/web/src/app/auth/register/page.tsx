@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { apiRequest } from "@/lib/api";
 
 const COUNTRIES = [
   "United Kingdom",
@@ -17,11 +19,21 @@ const COUNTRIES = [
   "Other",
 ];
 
+const BUYER_PROFILES = [
+  { value: "diaspora_investor", label: "Diaspora Investor" },
+  { value: "returning_gambian", label: "Returning Gambian" },
+  { value: "local_buyer", label: "Local Buyer" },
+  { value: "property_professional", label: "Property Professional" },
+];
+
 export default function RegisterPage() {
+  const router = useRouter();
   const [form, setForm] = useState({
-    fullName: "",
+    firstName: "",
+    lastName: "",
     email: "",
     phone: "",
+    buyerProfile: "",
     country: "",
     password: "",
     confirmPassword: "",
@@ -29,17 +41,24 @@ export default function RegisterPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!form.fullName.trim()) newErrors.fullName = "Full name is required";
+    if (!form.firstName.trim()) newErrors.firstName = "First name is required";
+    if (!form.lastName.trim()) newErrors.lastName = "Last name is required";
     if (!form.email.trim()) newErrors.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       newErrors.email = "Enter a valid email";
+    if (!form.buyerProfile) newErrors.buyerProfile = "Select your buyer profile";
     if (!form.country) newErrors.country = "Select your country";
     if (!form.password) newErrors.password = "Password is required";
     else if (form.password.length < 8)
       newErrors.password = "Password must be at least 8 characters";
+    else if (!/[A-Z]/.test(form.password))
+      newErrors.password = "Password must contain at least one uppercase letter";
+    else if (!/[0-9]/.test(form.password))
+      newErrors.password = "Password must contain at least one number";
     if (form.password !== form.confirmPassword)
       newErrors.confirmPassword = "Passwords do not match";
     if (!form.agreeTerms)
@@ -50,10 +69,32 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError("");
     if (!validate()) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setLoading(false);
+
+    try {
+      const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`.trim();
+      const phone = form.phone.trim();
+
+      await apiRequest("/api/auth/register", {
+        method: "POST",
+        body: {
+          buyerProfile: form.buyerProfile,
+          country: form.country,
+          email: form.email,
+          fullName,
+          password: form.password,
+          ...(phone ? { phone } : {}),
+        },
+        auth: false,
+      });
+      router.push("/auth/signin?registered=true");
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const updateField = (field: string, value: string | boolean) => {
@@ -79,20 +120,43 @@ export default function RegisterPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-kunda-ink">
-            Full name
-          </label>
-          <input
-            type="text"
-            value={form.fullName}
-            onChange={(e) => updateField("fullName", e.target.value)}
-            placeholder="Your full name"
-            className={`input-field ${errors.fullName ? "!border-red-400" : ""}`}
-          />
-          {errors.fullName && (
-            <p className="mt-1 text-xs text-red-500">{errors.fullName}</p>
-          )}
+        {submitError && (
+          <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">
+            {submitError}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-kunda-ink">
+              First name
+            </label>
+            <input
+              type="text"
+              value={form.firstName}
+              onChange={(e) => updateField("firstName", e.target.value)}
+              placeholder="First name"
+              className={`input-field ${errors.firstName ? "!border-red-400" : ""}`}
+            />
+            {errors.firstName && (
+              <p className="mt-1 text-xs text-red-500">{errors.firstName}</p>
+            )}
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-kunda-ink">
+              Last name
+            </label>
+            <input
+              type="text"
+              value={form.lastName}
+              onChange={(e) => updateField("lastName", e.target.value)}
+              placeholder="Last name"
+              className={`input-field ${errors.lastName ? "!border-red-400" : ""}`}
+            />
+            {errors.lastName && (
+              <p className="mt-1 text-xs text-red-500">{errors.lastName}</p>
+            )}
+          </div>
         </div>
 
         <div>
@@ -122,6 +186,25 @@ export default function RegisterPage() {
             placeholder="+44 7700 123456"
             className="input-field"
           />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-kunda-ink">
+            I am a...
+          </label>
+          <select
+            value={form.buyerProfile}
+            onChange={(e) => updateField("buyerProfile", e.target.value)}
+            className={`input-field cursor-pointer ${errors.buyerProfile ? "!border-red-400" : ""} ${!form.buyerProfile ? "text-kunda-muted" : ""}`}
+          >
+            <option value="">Select profile</option>
+            {BUYER_PROFILES.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+          {errors.buyerProfile && (
+            <p className="mt-1 text-xs text-red-500">{errors.buyerProfile}</p>
+          )}
         </div>
 
         <div>

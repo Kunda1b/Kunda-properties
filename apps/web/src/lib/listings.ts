@@ -1,4 +1,4 @@
-import { propertySeedData } from "@kunda/db";
+import { propertySeedData } from "./seed-data";
 import type { Property } from "@/types/property";
 
 export const LISTINGS: Property[] = propertySeedData.map((listing) => ({
@@ -13,7 +13,7 @@ export const LISTINGS: Property[] = propertySeedData.map((listing) => ({
   bathrooms: listing.bathrooms,
   sizeSqm: listing.sizeSqm ?? listing.lotSizeSqm ?? 0,
   verified: listing.verified,
-  photos: listing.gallery.map((url, index) => ({
+  photos: listing.gallery.map((url: string, index: number) => ({
     id: `${listing.id}-photo-${index + 1}`,
     url,
     publicId: `${listing.id}-photo-${index + 1}`,

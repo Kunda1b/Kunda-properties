@@ -1,15 +1,15 @@
 import * as configModule from "@kunda/config";
 import { app } from "./app";
 
-const { logger } = ("default" in configModule ? configModule.default : configModule) as typeof import("@kunda/config");
+const { logger, SERVICE_PORTS } = ("default" in configModule ? configModule.default : configModule) as typeof import("@kunda/config");
 
-const PORT = 4000;
+const PORT = SERVICE_PORTS.GATEWAY;
 
 app.listen(PORT, () => {
   logger.info(`API gateway running on port ${PORT}`);
   logger.info("Routing:");
-  logger.info("  /api/auth      -> :4001");
-  logger.info("  /api/listings  -> :4002");
-  logger.info("  /api/escrow    -> :4003");
-  logger.info("  /api/documents -> :4004");
+  logger.info(`  /api/auth      -> :${SERVICE_PORTS.AUTH}`);
+  logger.info(`  /api/listings  -> :${SERVICE_PORTS.LISTINGS}`);
+  logger.info(`  /api/escrow    -> :${SERVICE_PORTS.ESCROW}`);
+  logger.info(`  /api/documents -> :${SERVICE_PORTS.DOCUMENTS}`);
 });

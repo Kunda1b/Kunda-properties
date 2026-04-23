@@ -18,7 +18,7 @@ export async function publishNotification(
   job: NotificationJob,
 ): Promise<void> {
   const { Queue } = await import("bullmq");
-  const { QUEUE_NAMES, QUEUE_PREFIX } = await import("./constants");
+  const { QUEUE_NAMES, QUEUE_PREFIX } = await import("./constants.js");
 
   const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 

@@ -1,4 +1,4 @@
-import type { Listing as SharedListing, ListingPhoto } from "@kunda/types";
+import type { Listing as SharedListing, ListingPhoto, PropertyListing as SharedPropertyListing } from "@kunda/types";
 
 export type {
   Listing,
@@ -6,7 +6,12 @@ export type {
   ListingPreview,
   ListingSearchParams,
   ListingStatus,
+  PropertyListing as SharedPropertyListing,
 } from "@kunda/types";
+
+export type PropertyListing = Omit<SharedPropertyListing, "type"> & {
+  type: Lowercase<SharedPropertyListing["type"]>;
+};
 
 export type PropertyType = Lowercase<SharedListing["type"]>;
 
