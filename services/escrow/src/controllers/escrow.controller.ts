@@ -53,7 +53,7 @@ export async function initiateEscrow(req: Request, res: Response, next: NextFunc
 
     logger.info({ escrowId: escrow.id, buyerId, listingId }, "Escrow initiated");
     res.status(201).json({ success: true, data: escrow });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function createPaymentIntent(req: Request, res: Response, next: NextFunction) {
@@ -82,7 +82,7 @@ export async function createPaymentIntent(req: Request, res: Response, next: Nex
     });
 
     res.json({ success: true, data: { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id, amount: amountInCents, currency: stripeCurrency } });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function approveRelease(req: Request, res: Response, next: NextFunction) {
@@ -116,7 +116,7 @@ export async function approveRelease(req: Request, res: Response, next: NextFunc
 
     logger.info({ escrowId, transferId }, "Escrow funds released");
     res.json({ success: true, message: "Funds released to seller. Congratulations on your purchase!" });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function raiseDispute(req: Request, res: Response, next: NextFunction) {
@@ -133,7 +133,7 @@ export async function raiseDispute(req: Request, res: Response, next: NextFuncti
     await prisma.escrowAccount.update({ where: { id: escrowId }, data: { status: "DISPUTED", disputeReason: reason } });
     logger.info({ escrowId, userId }, "Dispute raised");
     res.json({ success: true, message: "Dispute raised. Our team will review within 48 hours." });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function getEscrow(req: Request, res: Response, next: NextFunction) {
@@ -156,7 +156,7 @@ export async function getEscrow(req: Request, res: Response, next: NextFunction)
     if (escrow.buyerId !== userId && escrow.sellerId !== userId && userRole !== "ADMIN") throw new AppError("Access denied", 403, "FORBIDDEN");
 
     res.json({ success: true, data: escrow });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function getMyEscrows(req: Request, res: Response, next: NextFunction) {
@@ -180,5 +180,5 @@ export async function getMyEscrows(req: Request, res: Response, next: NextFuncti
       prisma.escrowAccount.count({ where }),
     ]);
     res.json({ success: true, data: { escrows, total, page: Number(page), limit: Number(limit) } });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }

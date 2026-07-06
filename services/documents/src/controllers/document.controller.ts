@@ -37,7 +37,7 @@ export async function uploadDocument(req: Request, res: Response, next: NextFunc
 
     logger.info({ documentId: document.id, type, userId }, "Document uploaded");
     res.status(201).json({ success: true, data: document });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function getSignedUrl(req: Request, res: Response, next: NextFunction) {
@@ -62,7 +62,7 @@ export async function getSignedUrl(req: Request, res: Response, next: NextFuncti
     const expiresAt = Math.floor(Date.now() / 1000) + 3600;
     const signedUrl = cloudinary.utils.private_download_url(doc.cloudinaryId, "pdf", { expires_at: expiresAt, attachment: false });
     return res.json({ success: true, data: { url: signedUrl, expiresAt: new Date(expiresAt * 1000) } });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function listDocuments(req: Request, res: Response, next: NextFunction) {
@@ -80,7 +80,7 @@ export async function listDocuments(req: Request, res: Response, next: NextFunct
         fileSize: true, mimeType: true, url: true, verifiedAt: true, expiryDate: true, createdAt: true },
     });
     res.json({ success: true, data: documents });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function deleteDocument(req: Request, res: Response, next: NextFunction) {
@@ -97,5 +97,5 @@ export async function deleteDocument(req: Request, res: Response, next: NextFunc
     if (doc.cloudinaryId) await cloudinary.uploader.destroy(doc.cloudinaryId, { resource_type: "raw" }).catch(() => {});
     await prisma.document.delete({ where: { id: documentId } });
     res.json({ success: true, message: "Document deleted" });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }

@@ -31,7 +31,7 @@ export async function uploadImages(req: Request, res: Response, next: NextFuncti
 
     logger.info({ listingId: id, count: uploaded.length }, "Images uploaded");
     res.status(201).json({ success: true, data: uploaded });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function deleteImage(req: Request, res: Response, next: NextFunction) {
@@ -53,7 +53,7 @@ export async function deleteImage(req: Request, res: Response, next: NextFunctio
       if (next) await prisma.listingImage.update({ where: { id: next.id }, data: { isPrimary: true } });
     }
     res.json({ success: true, message: "Image deleted" });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function setPrimaryImage(req: Request, res: Response, next: NextFunction) {
@@ -69,7 +69,7 @@ export async function setPrimaryImage(req: Request, res: Response, next: NextFun
       prisma.listingImage.update({ where: { id: imageId }, data: { isPrimary: true } }),
     ]);
     res.json({ success: true, message: "Primary image updated" });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function reorderImages(req: Request, res: Response, next: NextFunction) {
@@ -80,5 +80,5 @@ export async function reorderImages(req: Request, res: Response, next: NextFunct
       prisma.listingImage.update({ where: { id: imageId, listingId: id }, data: { order: ord } })
     ));
     res.json({ success: true, message: "Images reordered" });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }

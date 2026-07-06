@@ -26,7 +26,7 @@ router.post("/notifications/broadcast", async (req, res, next) => {
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "BROADCAST", resource: "notification", newValues: { title, audience, recipientCount: users.length } } });
     logger.info({ recipientCount: users.length }, "Admin broadcast sent");
     return res.json({ success: true, data: { recipientCount: users.length } });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.get("/notifications", async (req, res, next) => {
@@ -35,7 +35,7 @@ router.get("/notifications", async (req, res, next) => {
     const skip = (Number(page) - 1) * Number(limit);
     const notifications = await prisma.notification.findMany({ take: Number(limit), skip, orderBy: { createdAt: "desc" } });
     res.json({ success: true, data: { notifications } });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 export default router;

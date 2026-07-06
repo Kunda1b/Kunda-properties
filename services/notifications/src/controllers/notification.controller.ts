@@ -8,7 +8,7 @@ export async function sendNotification(req: Request, res: Response, next: NextFu
     const notification = await prisma.notification.create({ data: { userId, title, body, type, data, templateId, status: "PENDING" } });
     await notificationQueue.add({ notificationId: notification.id }, { attempts: 3, backoff: { type: "exponential", delay: 2000 } });
     res.status(201).json({ success: true, data: { id: notification.id } });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function notifyEscrow(req: Request, res: Response, next: NextFunction) {
@@ -30,7 +30,7 @@ export async function notifyEscrow(req: Request, res: Response, next: NextFuncti
         .then((n) => notificationQueue.add({ notificationId: n.id }, { attempts: 3 }))
     ));
     return res.json({ success: true });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function getUserNotifications(req: Request, res: Response, next: NextFunction) {
@@ -47,7 +47,7 @@ export async function getUserNotifications(req: Request, res: Response, next: Ne
       prisma.notification.count({ where: { userId, readAt: null } }),
     ]);
     res.json({ success: true, data: { notifications, total, unreadCount, page: Number(page), limit: Number(limit) } });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function markAsRead(req: Request, res: Response, next: NextFunction) {
@@ -57,5 +57,5 @@ export async function markAsRead(req: Request, res: Response, next: NextFunction
     if (ids === "all") await prisma.notification.updateMany({ where: { userId, readAt: null }, data: { readAt: new Date() } });
     else await prisma.notification.updateMany({ where: { id: { in: ids }, userId }, data: { readAt: new Date() } });
     res.json({ success: true });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }

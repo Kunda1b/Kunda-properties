@@ -79,7 +79,7 @@ export async function searchListings(req: Request, res: Response, next: NextFunc
         facets: { propertyTypes: facets.map((f) => ({ type: f.propertyType, count: f._count.propertyType })), regions: GAMBIA_REGIONS },
       },
     });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function getFeaturedListings(req: Request, res: Response, next: NextFunction) {
@@ -94,7 +94,7 @@ export async function getFeaturedListings(req: Request, res: Response, next: Nex
       },
     });
     res.json({ success: true, data: listings });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function getSimilarListings(req: Request, res: Response, next: NextFunction) {
@@ -111,7 +111,7 @@ export async function getSimilarListings(req: Request, res: Response, next: Next
       take: 4, include: { images: { where: { isPrimary: true }, take: 1 } },
     });
     return res.json({ success: true, data: similar });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function getMarketStats(req: Request, res: Response, next: NextFunction) {
@@ -123,5 +123,5 @@ export async function getMarketStats(req: Request, res: Response, next: NextFunc
       prisma.listing.groupBy({ by: ["propertyType"], where: { status: "ACTIVE", priceUsd: { not: null } }, _avg: { priceUsd: true } }),
     ]);
     res.json({ success: true, data: { totalActive, byPropertyType: byType, topRegions: byRegion, averagePricesByType: avgPrices } });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
