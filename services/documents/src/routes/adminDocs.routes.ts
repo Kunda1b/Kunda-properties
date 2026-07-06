@@ -11,7 +11,7 @@ router.get("/documents/pending", async (req, res, next) => {
     if (search) where.title = { contains: String(search), mode: "insensitive" };
     const documents = await prisma.document.findMany({ where, take: Number(limit), orderBy: { createdAt: "asc" }, include: { uploadedBy: { include: { profile: true } } } });
     res.json({ success: true, data: { documents } });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.patch("/documents/:id/verify", async (req, res, next) => {
@@ -24,7 +24,7 @@ router.patch("/documents/:id/verify", async (req, res, next) => {
     });
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: status === "VERIFIED" ? "APPROVE" : "REJECT", resource: "document", resourceId: req.params.id } });
     return res.json({ success: true, data: doc });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 export default router;

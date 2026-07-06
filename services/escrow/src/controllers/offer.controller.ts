@@ -19,7 +19,7 @@ export async function makeOffer(req: Request, res: Response, next: NextFunction)
 
     logger.info({ offerId: offer.id, buyerId, listingId }, "Offer made");
     res.status(201).json({ success: true, data: offer });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function respondToOffer(req: Request, res: Response, next: NextFunction) {
@@ -47,7 +47,7 @@ export async function respondToOffer(req: Request, res: Response, next: NextFunc
 
     const updated = await prisma.offer.update({ where: { id: offerId }, data: updateData });
     res.json({ success: true, data: updated });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function getMyOffers(req: Request, res: Response, next: NextFunction) {
@@ -71,5 +71,5 @@ export async function getMyOffers(req: Request, res: Response, next: NextFunctio
       prisma.offer.count({ where }),
     ]);
     res.json({ success: true, data: { offers, total, page: Number(page), limit: Number(limit) } });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }

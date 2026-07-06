@@ -86,7 +86,7 @@ router.get("/stats", async (req, res, next) => {
         recentActivity,
       },
     });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -115,7 +115,7 @@ router.get("/users", async (req, res, next) => {
       prisma.user.count({ where }),
     ]);
     res.json({ success: true, data: { users: users.map(({ passwordHash, ...u }: any) => u), total, page: Number(page) } });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.get("/users/:id", async (req, res, next) => {
@@ -126,7 +126,7 @@ router.get("/users/:id", async (req, res, next) => {
     if (!user) return res.status(404).json({ success: false, error: "User not found" });
     const { passwordHash, ...safe } = user as any;
     return res.json({ success: true, data: safe });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.patch("/users/:id/suspend", async (req, res, next) => {
@@ -134,7 +134,7 @@ router.patch("/users/:id/suspend", async (req, res, next) => {
     await prisma.user.update({ where: { id: req.params.id }, data: { isSuspended: true } });
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "SUSPEND", resource: "user", resourceId: req.params.id } });
     res.json({ success: true });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.patch("/users/:id/activate", async (req, res, next) => {
@@ -142,7 +142,7 @@ router.patch("/users/:id/activate", async (req, res, next) => {
     await prisma.user.update({ where: { id: req.params.id }, data: { isSuspended: false, isActive: true } });
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "ACTIVATE", resource: "user", resourceId: req.params.id } });
     res.json({ success: true });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.patch("/users/:id/role", async (req, res, next) => {
@@ -151,7 +151,7 @@ router.patch("/users/:id/role", async (req, res, next) => {
     await prisma.user.update({ where: { id: req.params.id }, data: { role } });
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "UPDATE", resource: "user", resourceId: req.params.id, newValues: { role } } });
     res.json({ success: true });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ router.get("/kyc/pending", async (req, res, next) => {
       orderBy: { updatedAt: "asc" },
     });
     res.json({ success: true, data: { records } });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.patch("/kyc/:id/manual-verify", async (req, res, next) => {
@@ -175,7 +175,7 @@ router.patch("/kyc/:id/manual-verify", async (req, res, next) => {
     const kyc = await prisma.kycRecord.update({ where: { id: req.params.id }, data: { status: "VERIFIED", verifiedAt: new Date() } });
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "APPROVE", resource: "kyc", resourceId: req.params.id } });
     res.json({ success: true, data: kyc });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.patch("/kyc/:id/reject", async (req, res, next) => {
@@ -184,7 +184,7 @@ router.patch("/kyc/:id/reject", async (req, res, next) => {
     const kyc = await prisma.kycRecord.update({ where: { id: req.params.id }, data: { status: "REJECTED", rejectionReason: reason } });
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "REJECT", resource: "kyc", resourceId: req.params.id, newValues: { reason } } });
     res.json({ success: true, data: kyc });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -202,7 +202,7 @@ router.get("/audit-logs", async (req, res, next) => {
       prisma.auditLog.count({ where }),
     ]);
     res.json({ success: true, data: { logs, total } });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ router.get("/audit-logs", async (req, res, next) => {
 router.get("/exchange-rates", async (req, res, next) => {
   try {
     res.json({ success: true, data: await prisma.exchangeRate.findMany() });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.put("/exchange-rates", async (req, res, next) => {
@@ -224,7 +224,7 @@ router.put("/exchange-rates", async (req, res, next) => {
     });
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "UPDATE", resource: "exchange_rate", newValues: { fromCurrency, toCurrency, rate } } });
     return res.json({ success: true, data: updated });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 export default router;

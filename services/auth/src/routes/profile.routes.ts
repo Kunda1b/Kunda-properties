@@ -9,7 +9,7 @@ router.get("/", authenticate, async (req, res, next) => {
     const profile = await prisma.userProfile.findUnique({ where: { userId: (req as any).user.id } });
     if (!profile) throw new AppError("Profile not found", 404, "NOT_FOUND");
     res.json({ success: true, data: profile });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.patch("/", authenticate, async (req, res, next) => {
@@ -18,7 +18,7 @@ router.patch("/", authenticate, async (req, res, next) => {
     const profile = await prisma.userProfile.update({ where: { userId: (req as any).user.id },
       data: { firstName, lastName, bio, city, country, languages, avatarUrl } });
     res.json({ success: true, data: profile });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.patch("/preferences", authenticate, async (req, res, next) => {
@@ -28,7 +28,7 @@ router.patch("/preferences", authenticate, async (req, res, next) => {
       data: { preferredCurrency, diasporaCountry },
       select: { id: true, preferredCurrency: true, diasporaCountry: true } });
     res.json({ success: true, data: user });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 export default router;

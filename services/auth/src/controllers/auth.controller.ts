@@ -28,7 +28,7 @@ export async function register(req: Request, res: Response, next: NextFunction) 
     logger.info({ userId: user.id }, "New user registered");
     res.status(201).json({ success: true, message: "Account created. Please verify your email.",
       data: { id: user.id, email: user.email, role: user.role, profile: user.profile } });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function login(req: Request, res: Response, next: NextFunction) {
@@ -53,7 +53,7 @@ export async function login(req: Request, res: Response, next: NextFunction) {
       profile: user.profile, preferredCurrency: user.preferredCurrency, diasporaCountry: user.diasporaCountry,
       kyc: user.kyc,
     }}});
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function refreshToken(req: Request, res: Response, next: NextFunction) {
@@ -74,7 +74,7 @@ export async function refreshToken(req: Request, res: Response, next: NextFuncti
       userAgent: req.headers["user-agent"], ipAddress: req.ip, expiresAt: new Date(Date.now()+7*24*60*60*1000) } });
 
     res.json({ success: true, data: tokens });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function logout(req: Request, res: Response, next: NextFunction) {
@@ -86,7 +86,7 @@ export async function logout(req: Request, res: Response, next: NextFunction) {
       await redis.setex(`blacklist:${authHeader.slice(7)}`, 900, "1");
     }
     res.json({ success: true, message: "Logged out successfully" });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function verifyEmail(req: Request, res: Response, next: NextFunction) {
@@ -97,7 +97,7 @@ export async function verifyEmail(req: Request, res: Response, next: NextFunctio
     await prisma.user.update({ where: { id: userId }, data: { isEmailVerified: true } });
     await redis.del(`email_verify:${token}`);
     res.json({ success: true, message: "Email verified successfully" });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function forgotPassword(req: Request, res: Response, next: NextFunction) {
@@ -110,7 +110,7 @@ export async function forgotPassword(req: Request, res: Response, next: NextFunc
       await sendPasswordResetEmail(user.email, resetToken);
     }
     res.json({ success: true, message: "If that email exists, a reset link has been sent." });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function resetPassword(req: Request, res: Response, next: NextFunction) {
@@ -123,7 +123,7 @@ export async function resetPassword(req: Request, res: Response, next: NextFunct
     await prisma.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
     await redis.del(`password_reset:${token}`);
     res.json({ success: true, message: "Password reset successfully" });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function getMe(req: Request, res: Response, next: NextFunction) {
@@ -133,5 +133,5 @@ export async function getMe(req: Request, res: Response, next: NextFunction) {
     if (!user) throw new AppError("User not found", 404, "NOT_FOUND");
     const { passwordHash, ...safeUser } = user;
     res.json({ success: true, data: safeUser });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }

@@ -42,7 +42,7 @@ export async function createListing(req: Request, res: Response, next: NextFunct
 
     logger.info({ listingId: listing.id, sellerId }, "Listing created");
     res.status(201).json({ success: true, data: listing });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function getListing(req: Request, res: Response, next: NextFunction) {
@@ -61,7 +61,7 @@ export async function getListing(req: Request, res: Response, next: NextFunction
 
     prisma.listing.update({ where: { id: listing.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
     res.json({ success: true, data: listing });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function updateListing(req: Request, res: Response, next: NextFunction) {
@@ -83,7 +83,7 @@ export async function updateListing(req: Request, res: Response, next: NextFunct
 
     const listing = await prisma.listing.update({ where: { id }, data: updateData, include: { images: true } });
     res.json({ success: true, data: listing });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function submitForReview(req: Request, res: Response, next: NextFunction) {
@@ -97,7 +97,7 @@ export async function submitForReview(req: Request, res: Response, next: NextFun
 
     const updated = await prisma.listing.update({ where: { id }, data: { status: "PENDING_REVIEW" } });
     res.json({ success: true, data: updated });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function deleteListing(req: Request, res: Response, next: NextFunction) {
@@ -111,7 +111,7 @@ export async function deleteListing(req: Request, res: Response, next: NextFunct
 
     await prisma.listing.update({ where: { id }, data: { status: "WITHDRAWN" } });
     res.json({ success: true, message: "Listing withdrawn" });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function getMyListings(req: Request, res: Response, next: NextFunction) {
@@ -131,5 +131,5 @@ export async function getMyListings(req: Request, res: Response, next: NextFunct
       prisma.listing.count({ where }),
     ]);
     res.json({ success: true, data: { listings, total, page: Number(page), limit: Number(limit) } });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }

@@ -21,7 +21,7 @@ router.get("/listings", async (req, res, next) => {
       prisma.listing.count({ where }),
     ]);
     res.json({ success: true, data: { listings, total } });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.get("/listings/pending", async (req, res, next) => {
@@ -32,7 +32,7 @@ router.get("/listings/pending", async (req, res, next) => {
       orderBy: { updatedAt: "asc" },
     });
     res.json({ success: true, data: { listings, total: listings.length } });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.patch("/listings/:id/approve", async (req, res, next) => {
@@ -40,7 +40,7 @@ router.patch("/listings/:id/approve", async (req, res, next) => {
     const listing = await prisma.listing.update({ where: { id: req.params.id }, data: { status: "ACTIVE", publishedAt: new Date() } });
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "APPROVE", resource: "listing", resourceId: req.params.id } });
     res.json({ success: true, data: listing });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.patch("/listings/:id/reject", async (req, res, next) => {
@@ -48,7 +48,7 @@ router.patch("/listings/:id/reject", async (req, res, next) => {
     const listing = await prisma.listing.update({ where: { id: req.params.id }, data: { status: "DRAFT" } });
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "REJECT", resource: "listing", resourceId: req.params.id } });
     res.json({ success: true, data: listing });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.patch("/listings/:id/suspend", async (req, res, next) => {
@@ -56,14 +56,14 @@ router.patch("/listings/:id/suspend", async (req, res, next) => {
     const listing = await prisma.listing.update({ where: { id: req.params.id }, data: { status: "SUSPENDED" } });
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "SUSPEND", resource: "listing", resourceId: req.params.id } });
     res.json({ success: true, data: listing });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.patch("/listings/:id/feature", async (req, res, next) => {
   try {
     const listing = await prisma.listing.update({ where: { id: req.params.id }, data: { viewCount: { increment: 1000 } } });
     res.json({ success: true, data: listing });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 export default router;

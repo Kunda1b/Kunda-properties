@@ -12,7 +12,7 @@ router.get("/", async (req, res, next) => {
       orderBy: { createdAt: "desc" },
     });
     res.json({ success: true, data: saved });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.post("/:listingId", async (req, res, next) => {
@@ -24,7 +24,7 @@ router.post("/:listingId", async (req, res, next) => {
     });
     await prisma.listing.update({ where: { id: listingId }, data: { savedCount: { increment: 1 } } }).catch(() => {});
     res.status(201).json({ success: true, data: saved });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 router.delete("/:listingId", async (req, res, next) => {
@@ -34,7 +34,7 @@ router.delete("/:listingId", async (req, res, next) => {
     await prisma.savedListing.delete({ where: { userId_listingId: { userId, listingId } } });
     await prisma.listing.update({ where: { id: listingId }, data: { savedCount: { decrement: 1 } } }).catch(() => {});
     res.json({ success: true });
-  } catch (e) { next(e); }
+  } catch (e) { return next(e); }
 });
 
 export default router;

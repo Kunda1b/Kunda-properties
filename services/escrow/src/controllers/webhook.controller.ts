@@ -39,9 +39,9 @@ export async function handleStripeWebhook(req: Request, res: Response, next: Nex
       default:
         logger.debug({ type: event.type }, "Unhandled webhook event");
     }
-    res.json({ received: true });
+    return res.json({ received: true });
   } catch (error) {
     logger.error({ error }, "Error processing webhook");
-    res.status(500).json({ error: "Webhook processing failed" });
+    return res.status(500).json({ error: "Webhook processing failed" });
   }
 }

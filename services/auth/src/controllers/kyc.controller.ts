@@ -63,7 +63,7 @@ export async function submitKyc(req: Request, res: Response, next: NextFunction)
       message: kycStatus === "VERIFIED" ? "Identity verified successfully"
              : kycStatus === "REJECTED" ? "Verification failed. Please check documents and retry."
              : "Verification in progress. You'll be notified within 24 hours." } });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function uploadKycDocument(req: Request, res: Response, next: NextFunction) {
@@ -80,7 +80,7 @@ export async function uploadKycDocument(req: Request, res: Response, next: NextF
       create: { userId, status: "PENDING", ...updateData },
     });
     res.json({ success: true, message: `${side} document uploaded successfully` });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function getKycStatus(req: Request, res: Response, next: NextFunction) {
@@ -90,7 +90,7 @@ export async function getKycStatus(req: Request, res: Response, next: NextFuncti
       select: { status: true, idType: true, idCountry: true, verifiedAt: true,
         rejectionReason: true, smileJobId: true, createdAt: true, updatedAt: true } });
     res.json({ success: true, data: kyc || { status: "PENDING" } });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
 
 export async function smileWebhook(req: Request, res: Response, next: NextFunction) {
@@ -106,5 +106,5 @@ export async function smileWebhook(req: Request, res: Response, next: NextFuncti
 
     logger.info({ userId: kyc.userId, newStatus }, "KYC updated via webhook");
     return res.status(200).json({ received: true });
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 }
