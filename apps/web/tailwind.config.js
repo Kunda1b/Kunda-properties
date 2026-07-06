@@ -5,6 +5,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        border: "#e5e7eb",
         kunda: { 50:"#f0f9f4",100:"#dcf0e4",200:"#bbe1cc",300:"#8ac9a9",400:"#56aa80",500:"#348e62",600:"#23714d",700:"#1a5c3e",800:"#164a33",900:"#123d2b",950:"#09221a" },
         sand:  { 50:"#fdf8f0",100:"#faefd8",200:"#f3d9a4",300:"#eabd6a",400:"#e0a03c",500:"#d4831f" },
       },
