@@ -26,7 +26,7 @@ export function HeroSection() {
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-2 mb-8">
             <span className="text-xl">🇬🇲</span>
-            <span className="text-white/90 text-sm font-medium">The Gambia's #1 Diaspora Property Platform</span>
+            <span className="text-white/90 text-sm font-medium">The Gambia&apos;s #1 Diaspora Property Platform</span>
           </div>
           <h1 className="font-display text-5xl md:text-7xl font-bold text-white leading-tight mb-6">
             Find Your<span className="block text-sand-300"> Home in The Gambia</span>

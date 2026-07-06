@@ -35,7 +35,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="font-display text-4xl font-bold text-white">Kunda<span className="text-sand-400">.</span></Link>
-          <p className="text-white/70 mt-2 text-sm">🇬🇲 Gambia's Diaspora Property Platform</p>
+          <p className="text-white/70 mt-2 text-sm">🇬🇲 Gambia&apos;s Diaspora Property Platform</p>
         </div>
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <h1 className="font-display text-2xl font-bold text-gray-900 mb-1">Welcome back</h1>
@@ -59,7 +59,7 @@ export default function LoginPage() {
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />} Sign In
             </button>
           </form>
-          <p className="text-center text-sm text-gray-500 mt-6">Don't have an account? <Link href="/auth/register" className="text-kunda-600 font-medium">Create one</Link></p>
+          <p className="text-center text-sm text-gray-500 mt-6">Don&apos;t have an account? <Link href="/auth/register" className="text-kunda-600 font-medium">Create one</Link></p>
         </div>
       </div>
     </div>

@@ -23,7 +23,7 @@ router.patch("/documents/:id/verify", async (req, res, next) => {
       data: { status, verifiedAt: status === "VERIFIED" ? new Date() : undefined, verifiedById: (req as any).user.id, rejectionReason: reason },
     });
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: status === "VERIFIED" ? "APPROVE" : "REJECT", resource: "document", resourceId: req.params.id } });
-    res.json({ success: true, data: doc });
+    return res.json({ success: true, data: doc });
   } catch (e) { next(e); }
 });
 

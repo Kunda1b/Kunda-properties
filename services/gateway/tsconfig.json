@@ -4,15 +4,7 @@
     "rootDir": "src",
     "outDir": "dist",
     "module": "commonjs",
-    "target": "ES2022",
-    "paths": {
-      "@kunda/database": [
-        "../../packages/database/src"
-      ],
-      "@kunda/shared-types": [
-        "../../packages/shared-types/src"
-      ]
-    }
+    "target": "ES2022"
   },
   "include": [
     "src/**/*"

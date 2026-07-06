@@ -105,6 +105,6 @@ export async function smileWebhook(req: Request, res: Response, next: NextFuncti
       rejectionReason: newStatus === "REJECTED" ? ResultText : undefined, rawResponse: req.body } });
 
     logger.info({ userId: kyc.userId, newStatus }, "KYC updated via webhook");
-    res.status(200).json({ received: true });
+    return res.status(200).json({ received: true });
   } catch (error) { next(error); }
 }

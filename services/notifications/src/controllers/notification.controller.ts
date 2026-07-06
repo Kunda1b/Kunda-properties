@@ -29,7 +29,7 @@ export async function notifyEscrow(req: Request, res: Response, next: NextFuncti
       prisma.notification.create({ data: { userId, title: template.title, body: template.body, type: "IN_APP", data: { escrowId, event }, status: "PENDING" } })
         .then((n) => notificationQueue.add({ notificationId: n.id }, { attempts: 3 }))
     ));
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) { next(error); }
 }
 

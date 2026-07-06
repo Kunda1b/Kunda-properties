@@ -125,7 +125,7 @@ router.get("/users/:id", async (req, res, next) => {
     });
     if (!user) return res.status(404).json({ success: false, error: "User not found" });
     const { passwordHash, ...safe } = user as any;
-    res.json({ success: true, data: safe });
+    return res.json({ success: true, data: safe });
   } catch (e) { next(e); }
 });
 
@@ -223,7 +223,7 @@ router.put("/exchange-rates", async (req, res, next) => {
       update: { rate }, create: { fromCurrency, toCurrency, rate },
     });
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "UPDATE", resource: "exchange_rate", newValues: { fromCurrency, toCurrency, rate } } });
-    res.json({ success: true, data: updated });
+    return res.json({ success: true, data: updated });
   } catch (e) { next(e); }
 });
 

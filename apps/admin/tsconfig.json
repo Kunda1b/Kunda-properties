@@ -23,7 +23,10 @@
       "@kunda/shared-types": [
         "../../packages/shared-types/src"
       ]
-    }
+    },
+    "allowJs": true,
+    "noEmit": true,
+    "isolatedModules": true
   },
   "include": [
     "next-env.d.ts",

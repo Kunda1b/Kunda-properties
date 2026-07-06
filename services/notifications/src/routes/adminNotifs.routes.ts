@@ -25,7 +25,7 @@ router.post("/notifications/broadcast", async (req, res, next) => {
 
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "BROADCAST", resource: "notification", newValues: { title, audience, recipientCount: users.length } } });
     logger.info({ recipientCount: users.length }, "Admin broadcast sent");
-    res.json({ success: true, data: { recipientCount: users.length } });
+    return res.json({ success: true, data: { recipientCount: users.length } });
   } catch (e) { next(e); }
 });
 
