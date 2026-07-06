@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Kunda Properties",
+    "slug": "kunda-properties",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "splash": {
+      "backgroundColor": "#1a5c3e"
+    },
+    "ios": {
+      "bundleIdentifier": "gm.kundaproperties.app"
+    },
+    "android": {
+      "package": "gm.kundaproperties.app"
+    },
+    "plugins": [
+      "expo-notifications"
+    ]
+  }
+}

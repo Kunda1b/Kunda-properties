@@ -1,0 +1,10 @@
+import { Router } from "express";
+import { authenticate, requireRole } from "../middleware/authenticate";
+import { uploadDocument, getSignedUrl, listDocuments, deleteDocument } from "../controllers/document.controller";
+const router = Router();
+router.use(authenticate);
+router.get("/", listDocuments);
+router.post("/", uploadDocument);
+router.get("/:documentId/url", getSignedUrl);
+router.delete("/:documentId", deleteDocument);
+export default router;

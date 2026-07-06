@@ -1,0 +1,41 @@
+{
+  "name": "@kunda/mobile",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kunda/shared-types": "workspace:*",
+    "expo": "~51.0.0",
+    "expo-status-bar": "~1.12.0",
+    "expo-image-picker": "~15.0.0",
+    "expo-secure-store": "~13.0.0",
+    "expo-notifications": "~0.28.0",
+    "react": "18.2.0",
+    "react-native": "0.74.0",
+    "react-native-safe-area-context": "4.10.1",
+    "react-native-screens": "~3.31.0",
+    "@react-navigation/native": "^6.1.17",
+    "@react-navigation/bottom-tabs": "^6.5.20",
+    "@react-navigation/stack": "^6.3.29",
+    "@tanstack/react-query": "^5.35.1",
+    "zustand": "^4.5.2",
+    "axios": "^1.7.2",
+    "react-hook-form": "^7.51.4",
+    "@hookform/resolvers": "^3.3.4",
+    "zod": "^3.23.8",
+    "react-native-mmkv": "^2.12.2",
+    "lucide-react-native": "^0.378.0",
+    "react-native-reanimated": "~3.10.0",
+    "react-native-gesture-handler": "~2.16.1"
+  },
+  "devDependencies": {
+    "@types/react": "~18.2.79",
+    "typescript": "^5.4.5"
+  }
+}

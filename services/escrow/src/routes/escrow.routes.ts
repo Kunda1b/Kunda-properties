@@ -1,0 +1,13 @@
+import { Router } from "express";
+import { body } from "express-validator";
+import { authenticate } from "../middleware/authenticate";
+import { initiateEscrow, createPaymentIntent, approveRelease, raiseDispute, getEscrow, getMyEscrows } from "../controllers/escrow.controller";
+const router = Router();
+router.use(authenticate);
+router.get("/my", getMyEscrows);
+router.get("/:escrowId", getEscrow);
+router.post("/", body("listingId").notEmpty(), initiateEscrow);
+router.post("/:escrowId/payment-intent", createPaymentIntent);
+router.post("/:escrowId/approve-release", approveRelease);
+router.post("/:escrowId/dispute", body("reason").trim().isLength({ min: 20 }), raiseDispute);
+export default router;

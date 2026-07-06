@@ -1,0 +1,36 @@
+{
+  "name": "kunda-properties",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.1.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @kunda/database run db:generate",
+    "db:migrate:dev": "pnpm --filter @kunda/database run db:migrate:dev",
+    "db:migrate": "pnpm --filter @kunda/database run db:migrate",
+    "db:seed": "pnpm --filter @kunda/database run db:seed",
+    "db:studio": "pnpm --filter @kunda/database run db:studio",
+    "db:reset": "pnpm --filter @kunda/database run db:reset",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:build": "docker compose up -d --build",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "prettier": "^3.2.5",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.7.0",
+    "@typescript-eslint/parser": "^7.7.0",
+    "typescript": "^5.4.5"
+  }
+}
