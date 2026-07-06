@@ -61,7 +61,7 @@ export async function getSignedUrl(req: Request, res: Response, next: NextFuncti
 
     const expiresAt = Math.floor(Date.now() / 1000) + 3600;
     const signedUrl = cloudinary.utils.private_download_url(doc.cloudinaryId, "pdf", { expires_at: expiresAt, attachment: false });
-    res.json({ success: true, data: { url: signedUrl, expiresAt: new Date(expiresAt * 1000) } });
+    return res.json({ success: true, data: { url: signedUrl, expiresAt: new Date(expiresAt * 1000) } });
   } catch (error) { next(error); }
 }
 

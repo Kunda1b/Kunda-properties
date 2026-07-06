@@ -1,15 +1,17 @@
-import jwt from "jsonwebtoken";
+import jwt, { SignOptions } from "jsonwebtoken";
 import { AppError } from "./errors";
 
 interface TokenPayload { sub: string; role: string; type: "access"|"refresh"; iat?: number; exp?: number; }
 
 export async function generateTokens(userId: string, role: string) {
-  const accessToken = jwt.sign({ sub: userId, role, type: "access" }, process.env.JWT_SECRET!, {
-    expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
-  });
-  const refreshToken = jwt.sign({ sub: userId, role, type: "refresh" }, process.env.JWT_REFRESH_SECRET!, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
-  });
+  const accessOpts: SignOptions = {
+    expiresIn: (process.env.JWT_ACCESS_EXPIRES_IN || "15m") as SignOptions["expiresIn"],
+  };
+  const refreshOpts: SignOptions = {
+    expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || "7d") as SignOptions["expiresIn"],
+  };
+  const accessToken = jwt.sign({ sub: userId, role, type: "access" }, process.env.JWT_SECRET!, accessOpts);
+  const refreshToken = jwt.sign({ sub: userId, role, type: "refresh" }, process.env.JWT_REFRESH_SECRET!, refreshOpts);
   return { accessToken, refreshToken };
 }
 

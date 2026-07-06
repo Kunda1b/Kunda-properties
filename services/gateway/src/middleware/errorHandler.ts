@@ -10,7 +10,7 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     return res.status(err.statusCode).json({ success: false, error: err.message, code: err.code });
   }
   logger.error({ err }, "Unhandled error");
-  res.status(500).json({ success: false, error: "Internal server error", code: "INTERNAL_ERROR" });
+  return res.status(500).json({ success: false, error: "Internal server error", code: "INTERNAL_ERROR" });
 }
 export function notFoundHandler(req: Request, res: Response) {
   res.status(404).json({ success: false, error: `Route ${req.method} ${req.path} not found`, code: "NOT_FOUND" });

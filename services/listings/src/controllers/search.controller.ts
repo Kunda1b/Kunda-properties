@@ -110,7 +110,7 @@ export async function getSimilarListings(req: Request, res: Response, next: Next
       },
       take: 4, include: { images: { where: { isPrimary: true }, take: 1 } },
     });
-    res.json({ success: true, data: similar });
+    return res.json({ success: true, data: similar });
   } catch (error) { next(error); }
 }
 

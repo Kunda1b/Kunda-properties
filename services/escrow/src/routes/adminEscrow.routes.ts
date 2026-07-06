@@ -36,7 +36,7 @@ router.get("/escrow/:id", async (req, res, next) => {
         seller: { include: { profile: true } }, milestones: { orderBy: { order: "asc" } }, transactions: { orderBy: { createdAt: "desc" } } },
     });
     if (!escrow) return res.status(404).json({ success: false, error: "Escrow not found" });
-    res.json({ success: true, data: escrow });
+    return res.json({ success: true, data: escrow });
   } catch (e) { next(e); }
 });
 
@@ -65,7 +65,7 @@ router.patch("/escrow/:id/force-release", async (req, res, next) => {
       prisma.transaction.create({ data: { escrowId: req.params.id, type: "RELEASE", status: "COMPLETED", amount: escrow.sellerPayoutAmount || escrow.totalAmount, currency: escrow.currency, processedAt: new Date() } }),
     ]);
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "APPROVE", resource: "escrow", resourceId: req.params.id, newValues: { notes, action: "force_release" } } });
-    res.json({ success: true, message: "Funds released to seller" });
+    return res.json({ success: true, message: "Funds released to seller" });
   } catch (e) { next(e); }
 });
 
@@ -84,7 +84,7 @@ router.patch("/escrow/:id/force-refund", async (req, res, next) => {
       prisma.transaction.create({ data: { escrowId: req.params.id, type: "REFUND", status: "COMPLETED", amount: escrow.totalAmount, currency: escrow.currency, processedAt: new Date() } }),
     ]);
     await prisma.auditLog.create({ data: { userId: (req as any).user.id, action: "REJECT", resource: "escrow", resourceId: req.params.id, newValues: { notes, action: "force_refund" } } });
-    res.json({ success: true, message: "Funds refunded to buyer" });
+    return res.json({ success: true, message: "Funds refunded to buyer" });
   } catch (e) { next(e); }
 });
 
