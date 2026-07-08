@@ -1,8 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "build": {
-    "env": {
-      "NODE_OPTIONS": "--no-experimental-fetch"
-    }
-  }
+  "installCommand": "corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm install"
 }
