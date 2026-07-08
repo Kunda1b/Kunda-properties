@@ -1,7 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "turbo run build --filter=@kunda/web",
-  "installCommand": "pnpm install",
-  "outputDirectory": "apps/web/.next",
-  "framework": "nextjs"
+  "build": {
+    "env": {
+      "NODE_OPTIONS": "--no-experimental-fetch"
+    }
+  }
 }
