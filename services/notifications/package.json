@@ -9,8 +9,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@kunda/database": "workspace:*",
-    "@kunda/shared-types": "workspace:*",
+    "@kunda/database": "*",
+    "@kunda/shared-types": "*",
     "express": "^4.19.2",
     "express-rate-limit": "^7.2.0",
     "express-validator": "^7.1.0",
