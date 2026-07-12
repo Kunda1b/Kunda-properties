@@ -2,7 +2,6 @@
   "name": "kunda-properties",
   "version": "1.0.0",
   "private": true,
-  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
@@ -10,17 +9,22 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "db:generate": "pnpm --filter @kunda/database run db:generate",
-    "db:migrate:dev": "pnpm --filter @kunda/database run db:migrate:dev",
-    "db:migrate": "pnpm --filter @kunda/database run db:migrate",
-    "db:seed": "pnpm --filter @kunda/database run db:seed",
-    "db:studio": "pnpm --filter @kunda/database run db:studio",
-    "db:reset": "pnpm --filter @kunda/database run db:reset",
+    "db:generate": "npm run db:generate --workspace=@kunda/database",
+    "db:migrate:dev": "npm run db:migrate:dev --workspace=@kunda/database",
+    "db:migrate": "npm run db:migrate --workspace=@kunda/database",
+    "db:seed": "npm run db:seed --workspace=@kunda/database",
+    "db:studio": "npm run db:studio --workspace=@kunda/database",
+    "db:reset": "npm run db:reset --workspace=@kunda/database",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:build": "docker compose up -d --build",
     "clean": "turbo run clean"
   },
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
   "devDependencies": {
     "turbo": "^2.0.0",
     "prettier": "^3.2.5",
