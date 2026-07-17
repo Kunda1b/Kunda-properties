@@ -16,9 +16,10 @@ export default function EditListingPage({ id }: { id: string }) {
   const qc = useQueryClient();
   const [, navigate] = useLocation();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["listing-edit", id],
     queryFn: () => listingsApi.getOne(id).then((r) => r.data.data),
+    retry: 1,
   });
 
   const [form, setForm] = useState<any>(null);
@@ -46,6 +47,9 @@ export default function EditListingPage({ id }: { id: string }) {
         hasWater:           data.hasWater ?? false,
         hasInternet:        data.hasInternet ?? false,
         hasSecurity:        data.hasSecurity ?? false,
+        virtualTourUrl:     data.virtualTourUrl ?? "",
+        latitude:           data.latitude ?? "",
+        longitude:          data.longitude ?? "",
       });
     }
   }, [data]);
@@ -58,6 +62,8 @@ export default function EditListingPage({ id }: { id: string }) {
       bathrooms:       form.bathrooms !== "" ? Number(form.bathrooms) : null,
       landSizeSqm:     form.landSizeSqm !== "" ? Number(form.landSizeSqm) : null,
       buildingSizeSqm: form.buildingSizeSqm !== "" ? Number(form.buildingSizeSqm) : null,
+      latitude:        form.latitude !== "" ? Number(form.latitude) : undefined,
+      longitude:       form.longitude !== "" ? Number(form.longitude) : undefined,
     }),
     onSuccess: () => {
       toast.success("Listing updated");
@@ -68,6 +74,13 @@ export default function EditListingPage({ id }: { id: string }) {
   });
 
   const set = (key: string, val: any) => setForm((f: any) => ({ ...f, [key]: val }));
+
+  if (isError) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3">
+      <p className="text-gray-500">Failed to load listing</p>
+      <p className="text-xs text-gray-400">Please try again later</p>
+    </div>
+  );
 
   if (isLoading || !form) {
     return (
@@ -163,6 +176,27 @@ export default function EditListingPage({ id }: { id: string }) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Building Size (m²)</label>
             <input type="number" min="0" className="input-field" value={form.buildingSizeSqm} onChange={(e) => set("buildingSizeSqm", e.target.value)} />
+          </div>
+        </div>
+
+        {/* Virtual Tour */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Virtual Tour URL</label>
+          <input className="input-field" value={form.virtualTourUrl} onChange={(e) => set("virtualTourUrl", e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=..." />
+        </div>
+
+        {/* Map Coordinates */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
+            <input type="number" step="any" className="input-field" value={form.latitude} onChange={(e) => set("latitude", e.target.value)}
+              placeholder="e.g. 13.4438" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
+            <input type="number" step="any" className="input-field" value={form.longitude} onChange={(e) => set("longitude", e.target.value)}
+              placeholder="e.g. -16.6817" />
           </div>
         </div>
 

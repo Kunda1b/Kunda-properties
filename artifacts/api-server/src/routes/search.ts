@@ -15,7 +15,7 @@ router.get("/", async (req, res, next) => {
   try {
     const {
       q, propertyType, minPrice, maxPrice, region, area, bedrooms,
-      furnished, titleDeedAvailable, isNegotiable, isInstallment,
+      furnished, titleDeedAvailable, isNegotiable, isInstallment, isVerified,
       page = 1, limit = 12, sortBy = "created_at", sortOrder = "desc",
     } = req.query;
 
@@ -39,6 +39,7 @@ router.get("/", async (req, res, next) => {
     if (titleDeedAvailable === "true") conditions.push(eq(listings.titleDeedAvailable, true));
     if (isNegotiable === "true") conditions.push(eq(listings.isNegotiable, true));
     if (isInstallment === "true") conditions.push(eq(listings.isInstallment, true));
+    if (isVerified === "true") conditions.push(eq(listings.isVerified, true));
     if (bedrooms) conditions.push(eq(listings.bedrooms, Number(bedrooms)));
     if (minPrice) conditions.push(gte(listings.priceUsd, String(minPrice)));
     if (maxPrice) conditions.push(lte(listings.priceUsd, String(maxPrice)));

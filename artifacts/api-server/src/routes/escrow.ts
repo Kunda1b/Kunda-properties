@@ -1,18 +1,26 @@
 import { Router } from "express";
 import { body } from "express-validator";
 import { db } from "@workspace/db";
-import { escrowAccounts, escrowMilestones, transactions, listings, offers, kycRecords } from "@workspace/db/schema";
+import { escrowAccounts, escrowMilestones, transactions, listings, offers, kycRecords, users } from "@workspace/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { authenticate } from "../middleware/authenticate.js";
 import { validate } from "../middleware/validate.js";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
 import { notify } from "../lib/notify.js";
+import { getStripe } from "../lib/stripe.js";
+import { escrowLimiter } from "../middleware/rateLimiters.js";
+import { writeAudit } from "../lib/audit.js";
+import { sanitizeMultiline } from "../lib/sanitize.js";
 
 const router = Router();
 router.use(authenticate);
 
 const PLATFORM_FEE_PERCENT = 2.5;
+
+function isStripeConfigured(): boolean {
+  return !!process.env.STRIPE_SECRET_KEY;
+}
 
 // ── GET /escrow/my ────────────────────────────────────────────────────────────
 router.get("/my", async (req, res, next) => {
@@ -59,20 +67,19 @@ router.get("/:escrowId", async (req, res, next) => {
 // ── POST /escrow ──────────────────────────────────────────────────────────────
 router.post(
   "/",
-  validate([body("listingId").notEmpty()]),
+  escrowLimiter,
+  validate([body("listingId").notEmpty().isLength({ max: 64 })]),
   async (req, res, next) => {
     try {
-      const buyerId = (req as any).user.id;
+      const buyerId = req.user!.id;
       const { listingId, offerId } = req.body;
 
-      // KYC gate: buyer must be verified
       const [kyc] = await db.select({ status: kycRecords.status })
         .from(kycRecords).where(eq(kycRecords.userId, buyerId)).limit(1);
       if (!kyc || kyc.status !== "VERIFIED") {
         throw new AppError(
           "Identity verification required before initiating escrow. Please complete KYC.",
-          403,
-          "KYC_REQUIRED",
+          403, "KYC_REQUIRED",
         );
       }
 
@@ -82,7 +89,6 @@ router.post(
       if (listing.sellerId === buyerId)
         throw new AppError("Cannot initiate escrow on your own listing", 400, "OWN_LISTING");
 
-      // Check for existing active escrow
       const [existingEscrow] = await db.select({ id: escrowAccounts.id }).from(escrowAccounts)
         .where(and(
           eq(escrowAccounts.listingId, listingId),
@@ -128,13 +134,19 @@ router.post(
         limit: 1,
       });
 
-      // Notify seller
       await notify(
         listing.sellerId,
         "Escrow Initiated",
         `A buyer has initiated escrow for "${listing.title}" (${referenceNumber}).`,
         { escrowId: escrow.id, listingId },
       );
+
+      await writeAudit(req, {
+        action: "ESCROW_INITIATE",
+        resource: "escrow",
+        resourceId: escrow.id,
+        newValues: { listingId, offerId: offerId || null, totalAmount: finalAmount, currency: finalCurrency },
+      });
 
       logger.info({ escrowId: escrow.id, buyerId, listingId }, "Escrow initiated");
       res.status(201).json({ success: true, data: result[0] });
@@ -143,58 +155,143 @@ router.post(
 );
 
 // ── POST /escrow/:escrowId/payment-intent ─────────────────────────────────────
-router.post("/:escrowId/payment-intent", async (req, res, next) => {
+router.post("/:escrowId/payment-intent", escrowLimiter, async (req, res, next) => {
   try {
-    const buyerId = (req as any).user.id;
+    const buyerId = req.user!.id;
     const [escrow] = await db.select().from(escrowAccounts).where(eq(escrowAccounts.id, req.params.escrowId)).limit(1);
     if (!escrow) throw new AppError("Escrow not found", 404, "NOT_FOUND");
     if (escrow.buyerId !== buyerId) throw new AppError("Access denied", 403, "FORBIDDEN");
     if (escrow.status !== "INITIATED") throw new AppError("Escrow is not in INITIATED state", 400, "INVALID_STATE");
 
-    // Stripe not configured — stub marks as FUNDED
-    const stubClientSecret = `pi_stub_${escrow.id}_secret_test`;
+    if (!isStripeConfigured()) {
+      // Stripe not configured — stub mode for development
+      await db.update(escrowAccounts)
+        .set({ stripePaymentIntentId: `pi_stub_${escrow.id}`, status: "FUNDED", updatedAt: new Date() })
+        .where(eq(escrowAccounts.id, escrow.id));
+
+      await db.insert(transactions).values({
+        escrowId: escrow.id, type: "DEPOSIT", status: "COMPLETED",
+        amount: escrow.totalAmount, currency: escrow.currency, processedAt: new Date(),
+      });
+
+      await notify(escrow.sellerId, "Escrow Funded 💰",
+        `The buyer has funded escrow ${escrow.referenceNumber}. The 14-day inspection period begins now.`,
+        { escrowId: escrow.id },
+      );
+
+      logger.info({ escrowId: escrow.id }, "Payment intent stub (Stripe not configured)");
+      return res.json({
+        success: true,
+        data: { clientSecret: `pi_stub_${escrow.id}_secret`, amount: Math.round(Number(escrow.totalAmount) * 100), currency: escrow.currency, escrowId: escrow.id, mode: "stub" },
+      });
+    }
+
+    // Real Stripe flow
+    const stripe = getStripe();
+
+    // Get or create Stripe customer for buyer
+    const [buyer] = await db.select().from(users).where(eq(users.id, buyerId)).limit(1);
+    let stripeCustomerId = buyer!.stripeCustomerId;
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: buyer!.email,
+        metadata: { userId: buyerId },
+      });
+      stripeCustomerId = customer.id;
+      await db.update(users).set({ stripeCustomerId }).where(eq(users.id, buyerId));
+    }
+
+    // Get seller's Stripe account (for Connect destination charges)
+    const [seller] = await db.select().from(users).where(eq(users.id, escrow.sellerId)).limit(1);
+
+    const amountInCents = Math.round(Number(escrow.totalAmount) * 100);
+    const feeInCents = Math.round(Number(escrow.platformFeeAmount) * 100);
+    const sellerAmountInCents = amountInCents - feeInCents;
+
+    const paymentIntentParams: any = {
+      amount: amountInCents,
+      currency: escrow.currency.toLowerCase() === "gmd" ? "usd" : escrow.currency.toLowerCase(),
+      customer: stripeCustomerId,
+      capture_method: "manual",
+      metadata: {
+        escrowId: escrow.id,
+        referenceNumber: escrow.referenceNumber,
+        listingId: escrow.listingId,
+      },
+      description: `Escrow ${escrow.referenceNumber} - ${escrow.listingId}`,
+    };
+
+    // If seller has a Stripe Connect account, use destination charges
+    if (seller?.stripeAccountId) {
+      paymentIntentParams.transfer_data = {
+        destination: seller.stripeAccountId,
+        amount: sellerAmountInCents,
+      };
+      paymentIntentParams.application_fee_amount = feeInCents;
+      paymentIntentParams.on_behalf_of = seller.stripeAccountId;
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
+
     await db.update(escrowAccounts)
-      .set({ stripePaymentIntentId: `pi_stub_${escrow.id}`, status: "FUNDED", updatedAt: new Date() })
+      .set({
+        stripePaymentIntentId: paymentIntent.id,
+        updatedAt: new Date(),
+      })
       .where(eq(escrowAccounts.id, escrow.id));
 
-    await db.insert(transactions).values({
-      escrowId: escrow.id, type: "DEPOSIT", status: "COMPLETED",
-      amount: escrow.totalAmount, currency: escrow.currency, processedAt: new Date(),
-    });
+    // Transaction is created on webhook confirmation, not on PI creation
+    // Funds are authorized but not captured until buyer approves release
 
-    // Notify seller
-    await notify(
-      escrow.sellerId,
-      "Escrow Funded 💰",
-      `The buyer has funded escrow ${escrow.referenceNumber}. The 14-day inspection period begins now.`,
-      { escrowId: escrow.id },
-    );
-
-    logger.info({ escrowId: escrow.id }, "Payment intent stub created, escrow marked FUNDED");
+    logger.info({ escrowId: escrow.id, paymentIntent: paymentIntent.id }, "Payment intent created");
     res.json({
       success: true,
-      data: { clientSecret: stubClientSecret, amount: Math.round(Number(escrow.totalAmount) * 100), currency: escrow.currency, escrowId: escrow.id },
+      data: {
+        clientSecret: paymentIntent.client_secret,
+        amount: amountInCents,
+        currency: paymentIntent.currency,
+        escrowId: escrow.id,
+        mode: "live",
+      },
     });
   } catch (err) { next(err); }
 });
 
 // ── POST /escrow/:escrowId/approve-release ────────────────────────────────────
-router.post("/:escrowId/approve-release", async (req, res, next) => {
+router.post("/:escrowId/approve-release", escrowLimiter, async (req, res, next) => {
   try {
-    const buyerId = (req as any).user.id;
+    const buyerId = req.user!.id;
     const [escrow] = await db.select().from(escrowAccounts).where(eq(escrowAccounts.id, req.params.escrowId)).limit(1);
     if (!escrow) throw new AppError("Escrow not found", 404, "NOT_FOUND");
     if (escrow.buyerId !== buyerId) throw new AppError("Only the buyer can approve release", 403, "FORBIDDEN");
     if (!["FUNDED", "INSPECTING"].includes(escrow.status))
       throw new AppError("Escrow must be FUNDED or INSPECTING to approve", 400, "INVALID_STATE");
 
+    const previousStatus = escrow.status;
     await db.update(escrowAccounts)
       .set({ status: "APPROVED", updatedAt: new Date() })
       .where(eq(escrowAccounts.id, escrow.id));
 
-    await notify(
-      escrow.sellerId,
-      "Release Approved ✅",
+    await writeAudit(req, {
+      action: "ESCROW_APPROVE_RELEASE",
+      resource: "escrow",
+      resourceId: escrow.id,
+      oldValues: { status: previousStatus },
+      newValues: { status: "APPROVED" },
+    });
+
+    // If Stripe is configured, capture/confirm the payment
+    if (isStripeConfigured() && escrow.stripePaymentIntentId && !escrow.stripePaymentIntentId.startsWith("pi_stub_")) {
+      const stripe = getStripe();
+      try {
+        await stripe.paymentIntents.capture(escrow.stripePaymentIntentId);
+        logger.info({ escrowId: escrow.id }, "Payment intent captured");
+      } catch (stripeErr: any) {
+        logger.warn({ escrowId: escrow.id, error: stripeErr.message }, "Stripe capture failed, proceeding with manual release");
+      }
+    }
+
+    await notify(escrow.sellerId, "Release Approved ✅",
       `The buyer has approved fund release for escrow ${escrow.referenceNumber}. Payout is being processed.`,
       { escrowId: escrow.id },
     );
@@ -205,24 +302,33 @@ router.post("/:escrowId/approve-release", async (req, res, next) => {
 
 // ── POST /escrow/:escrowId/dispute ─────────────────────────────────────────────
 router.post("/:escrowId/dispute",
-  validate([body("reason").trim().isLength({ min: 20 })]),
+  escrowLimiter,
+  validate([body("reason").trim().isLength({ min: 20, max: 5000 })]),
   async (req, res, next) => {
     try {
-      const userId = (req as any).user.id;
+      const userId = req.user!.id;
       const [escrow] = await db.select().from(escrowAccounts).where(eq(escrowAccounts.id, req.params.escrowId)).limit(1);
       if (!escrow) throw new AppError("Escrow not found", 404, "NOT_FOUND");
       if (escrow.buyerId !== userId && escrow.sellerId !== userId)
         throw new AppError("Access denied", 403, "FORBIDDEN");
 
+      const reason = sanitizeMultiline(req.body.reason, 5000);
+      const previousStatus = escrow.status;
+
       await db.update(escrowAccounts)
-        .set({ status: "DISPUTED", notes: req.body.reason, updatedAt: new Date() })
+        .set({ status: "DISPUTED", notes: reason, updatedAt: new Date() })
         .where(eq(escrowAccounts.id, escrow.id));
 
-      // Notify the other party
+      await writeAudit(req, {
+        action: "ESCROW_DISPUTE",
+        resource: "escrow",
+        resourceId: escrow.id,
+        oldValues: { status: previousStatus },
+        newValues: { status: "DISPUTED", reason },
+      });
+
       const otherPartyId = userId === escrow.buyerId ? escrow.sellerId : escrow.buyerId;
-      await notify(
-        otherPartyId,
-        "Dispute Raised ⚠️",
+      await notify(otherPartyId, "Dispute Raised ⚠️",
         `A dispute has been raised on escrow ${escrow.referenceNumber}. Our team will review within 48 hours.`,
         { escrowId: escrow.id },
       );

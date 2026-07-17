@@ -1,0 +1,14 @@
+-- Helper: how the API should set RLS context when using a non-owner DB role.
+-- Example (within a transaction):
+--   BEGIN;
+--   SELECT set_config('app.user_id',   'user-uuid-here', true);
+--   SELECT set_config('app.user_role', 'BUYER', true);
+--   -- run queries ...
+--   COMMIT;
+--
+-- Optional production hardening (after verifying app works with policies):
+--   ALTER TABLE kyc_records FORCE ROW LEVEL SECURITY;
+--   ALTER TABLE documents FORCE ROW LEVEL SECURITY;
+--   ALTER TABLE escrow_accounts FORCE ROW LEVEL SECURITY;
+--   ALTER TABLE sessions FORCE ROW LEVEL SECURITY;
+--   ALTER TABLE audit_logs FORCE ROW LEVEL SECURITY;

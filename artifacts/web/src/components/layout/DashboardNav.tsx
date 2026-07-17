@@ -1,14 +1,16 @@
 import { Link, useLocation } from "wouter";
-import { Home, Building2, DollarSign, Shield, User, LogOut, Handshake, Bell, FileText } from "lucide-react";
+import { Home, Building2, DollarSign, Shield, User, LogOut, Handshake, Bell, FileText, MessageSquare, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { useQuery } from "@tanstack/react-query";
-import { notificationsApi } from "@/lib/api";
+import { notificationsApi, messagesApi } from "@/lib/api";
 
 const BASE_LINKS = [
   { href: "/dashboard", icon: Home, label: "Overview", exact: true },
   { href: "/dashboard/offers", icon: Handshake, label: "Offers" },
   { href: "/dashboard/listings", icon: Building2, label: "My Listings" },
+  { href: "/dashboard/messages", icon: MessageSquare, label: "Messages" },
+  { href: "/dashboard/viewings", icon: Calendar, label: "Viewings" },
   { href: "/dashboard/escrow", icon: DollarSign, label: "Escrow" },
   { href: "/dashboard/kyc", icon: Shield, label: "Verification" },
   { href: "/dashboard/documents", icon: FileText, label: "Documents" },
@@ -28,7 +30,16 @@ export function DashboardNav() {
     retry: false,
   });
 
+  const { data: msgData } = useQuery({
+    queryKey: ["msg-unread-count"],
+    queryFn: () => messagesApi.unreadCount().then((r) => r.data.data),
+    refetchInterval: 15_000,
+    enabled: !!user,
+    retry: false,
+  });
+
   const unreadCount: number = notifData?.unreadCount ?? 0;
+  const unreadMsgCount: number = msgData?.count ?? 0;
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || pathname.startsWith(href + "/");
@@ -49,6 +60,11 @@ export function DashboardNav() {
             {label === "Notifications" && unreadCount > 0 && (
               <span className="bg-kunda-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                 {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+            {label === "Messages" && unreadMsgCount > 0 && (
+              <span className="bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                {unreadMsgCount > 9 ? "9+" : unreadMsgCount}
               </span>
             )}
           </Link>

@@ -4,10 +4,11 @@ import slugify from "slugify";
 import { db } from "@workspace/db";
 import { listings, listingImages, listingVideos, savedListings, priceHistory } from "@workspace/db/schema";
 import { eq, and, ne } from "drizzle-orm";
-import { authenticate } from "../middleware/authenticate.js";
+import { authenticate, requireSellerOrAgent } from "../middleware/authenticate.js";
 import { validate } from "../middleware/validate.js";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
+import { sanitizeText, sanitizeMultiline, sanitizeUrl } from "../lib/sanitize.js";
 
 const router = Router();
 
@@ -65,23 +66,28 @@ router.get("/my/all", async (req, res, next) => {
 // ── POST /listings ─────────────────────────────────────────────────────────────
 router.post(
   "/",
+  requireSellerOrAgent,
   validate([
     body("title").trim().isLength({ min: 10, max: 200 }),
-    body("description").trim().isLength({ min: 20 }),
+    body("description").trim().isLength({ min: 20, max: 20000 }),
     body("propertyType").isIn(["HOUSE", "APARTMENT", "LAND", "COMMERCIAL", "VILLA", "COMPOUND"]),
     body("price").isNumeric(),
     body("currency").isIn(["GMD", "USD", "GBP", "EUR"]),
-    body("address").trim().notEmpty(),
-    body("region").trim().notEmpty(),
+    body("address").trim().notEmpty().isLength({ max: 300 }),
+    body("region").trim().notEmpty().isLength({ max: 100 }),
   ]),
   async (req, res, next) => {
     try {
-      const sellerId = (req as any).user.id;
-      const { title, description, propertyType, price, currency, address, region, area,
+      const sellerId = req.user!.id;
+      const title = sanitizeText(req.body.title, 200);
+      const description = sanitizeMultiline(req.body.description, 20000);
+      const address = sanitizeText(req.body.address, 300);
+      const region = sanitizeText(req.body.region, 100);
+      const { propertyType, price, currency, area,
         latitude, longitude, bedrooms, bathrooms, toilets, landSizeSqm, buildingSizeSqm,
         yearBuilt, floors, features, furnished, hasElectricity, hasWater, hasInternet,
         hasSecurity, titleDeedAvailable, titleDeedNumber, isNegotiable, isInstallment,
-        installmentYears, diasporaHighlights } = req.body;
+        installmentYears, diasporaHighlights, virtualTourUrl } = req.body;
 
       // Generate unique slug
       let slug = slugify(`${title} ${region}`, { lower: true, strict: true });
@@ -111,7 +117,10 @@ router.post(
         titleDeedNumber: titleDeedNumber || null,
         isNegotiable: isNegotiable || false, isInstallment: isInstallment || false,
         installmentYears: installmentYears ? Number(installmentYears) : null,
-        diasporaHighlights: diasporaHighlights || [],
+        diasporaHighlights: Array.isArray(diasporaHighlights)
+          ? diasporaHighlights.map((h: unknown) => sanitizeText(h, 200)).filter(Boolean)
+          : [],
+        virtualTourUrl: virtualTourUrl ? sanitizeUrl(virtualTourUrl) : null,
       }).returning();
 
       logger.info({ listingId: listing.id, sellerId }, "Listing created");
@@ -124,17 +133,26 @@ router.post(
 router.patch("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user.id;
-    const userRole = (req as any).user.role;
+    const userId = req.user!.id;
+    const userRole = req.user!.role;
 
     const [existing] = await db.select().from(listings).where(eq(listings.id, id)).limit(1);
     if (!existing) throw new AppError("Listing not found", 404, "NOT_FOUND");
     if (existing.sellerId !== userId && userRole !== "ADMIN" && userRole !== "SUPER_ADMIN")
       throw new AppError("Access denied", 403, "FORBIDDEN");
 
-    const { title, description, propertyType, price, currency, address, region, area,
+    const { propertyType, price, currency, area,
       bedrooms, bathrooms, furnished, features, diasporaHighlights, isNegotiable,
-      isInstallment, installmentYears, titleDeedAvailable, titleDeedNumber } = req.body;
+      isInstallment, installmentYears, titleDeedAvailable, titleDeedNumber,
+      latitude, longitude } = req.body;
+
+    const title = req.body.title != null ? sanitizeText(req.body.title, 200) : undefined;
+    const description = req.body.description != null ? sanitizeMultiline(req.body.description, 20000) : undefined;
+    const address = req.body.address != null ? sanitizeText(req.body.address, 300) : undefined;
+    const region = req.body.region != null ? sanitizeText(req.body.region, 100) : undefined;
+    const virtualTourUrl = req.body.virtualTourUrl !== undefined
+      ? (req.body.virtualTourUrl ? sanitizeUrl(req.body.virtualTourUrl) : null)
+      : undefined;
 
     const [updated] = await db.update(listings).set({
       ...(title && { title }), ...(description && { description }),
@@ -142,17 +160,24 @@ router.patch("/:id", async (req, res, next) => {
       ...(price !== undefined && { price: String(price) }),
       ...(currency && { currency }),
       ...(address && { address }), ...(region && { region }),
-      ...(area !== undefined && { area }),
+      ...(area !== undefined && { area: area ? sanitizeText(area, 100) : area }),
+      ...(latitude !== undefined && { latitude: String(latitude) }),
+      ...(longitude !== undefined && { longitude: String(longitude) }),
       ...(bedrooms !== undefined && { bedrooms: Number(bedrooms) }),
       ...(bathrooms !== undefined && { bathrooms: Number(bathrooms) }),
       ...(furnished !== undefined && { furnished }),
-      ...(features && { features }),
-      ...(diasporaHighlights && { diasporaHighlights }),
+      ...(features && { features: Array.isArray(features) ? features.map((f: unknown) => sanitizeText(f, 100)) : features }),
+      ...(diasporaHighlights && {
+        diasporaHighlights: Array.isArray(diasporaHighlights)
+          ? diasporaHighlights.map((h: unknown) => sanitizeText(h, 200))
+          : diasporaHighlights,
+      }),
       ...(isNegotiable !== undefined && { isNegotiable }),
       ...(isInstallment !== undefined && { isInstallment }),
       ...(installmentYears !== undefined && { installmentYears: Number(installmentYears) }),
       ...(titleDeedAvailable !== undefined && { titleDeedAvailable }),
-      ...(titleDeedNumber !== undefined && { titleDeedNumber }),
+      ...(titleDeedNumber !== undefined && { titleDeedNumber: titleDeedNumber ? sanitizeText(titleDeedNumber, 100) : titleDeedNumber }),
+      ...(virtualTourUrl !== undefined && { virtualTourUrl }),
       updatedAt: new Date(),
     }).where(eq(listings.id, id)).returning();
 

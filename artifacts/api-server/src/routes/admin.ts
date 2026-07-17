@@ -5,13 +5,16 @@ import {
   escrowAccounts, transactions, documents, notifications, auditLogs, exchangeRates,
 } from "@workspace/db/schema";
 import { eq, and, or, ilike, inArray, sql, desc, asc } from "drizzle-orm";
-import { authenticate } from "../middleware/authenticate.js";
-import { requireRole } from "../middleware/authenticate.js";
+import { authenticate, requireAdmin } from "../middleware/authenticate.js";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
+import { adminLimiter } from "../middleware/rateLimiters.js";
+import { writeAudit } from "../lib/audit.js";
+import { sanitizeMultiline } from "../lib/sanitize.js";
 
 const router = Router();
-router.use(authenticate, requireRole("ADMIN", "SUPER_ADMIN"));
+// Fresh DB role check so demoted/suspended admins lose access immediately
+router.use(authenticate, requireAdmin, adminLimiter);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STATS / ANALYTICS
@@ -107,12 +110,18 @@ router.get("/users", async (req, res, next) => {
 router.patch("/users/:id/suspend", async (req, res, next) => {
   try {
     const { suspend = true } = req.body;
+    // Prevent self-lockout and demoting via suspend of super admins by non-super
+    if (req.params.id === req.user!.id) {
+      throw new AppError("Cannot suspend your own account", 400, "SELF_SUSPEND");
+    }
     const [user] = await db.update(users)
       .set({ isSuspended: Boolean(suspend), updatedAt: new Date() })
       .where(eq(users.id, req.params.id)).returning();
-    await db.insert(auditLogs).values({
-      userId: (req as any).user.id, action: suspend ? "SUSPEND" : "UNSUSPEND",
-      resource: "user", resourceId: req.params.id,
+    await writeAudit(req, {
+      action: suspend ? "SUSPEND" : "UNSUSPEND",
+      resource: "user",
+      resourceId: req.params.id,
+      newValues: { isSuspended: Boolean(suspend) },
     });
     res.json({ success: true, data: user });
   } catch (err) { next(err); }
@@ -154,8 +163,11 @@ router.patch("/kyc/:id/verify", async (req, res, next) => {
     const [kyc] = await db.update(kycRecords)
       .set({ status: "VERIFIED", verifiedAt: new Date(), updatedAt: new Date() })
       .where(eq(kycRecords.id, req.params.id)).returning();
-    await db.insert(auditLogs).values({
-      userId: (req as any).user.id, action: "VERIFY", resource: "kyc", resourceId: req.params.id,
+    await writeAudit(req, {
+      action: "KYC_VERIFY",
+      resource: "kyc",
+      resourceId: req.params.id,
+      newValues: { status: "VERIFIED" },
     });
     res.json({ success: true, data: kyc });
   } catch (err) { next(err); }
@@ -163,13 +175,15 @@ router.patch("/kyc/:id/verify", async (req, res, next) => {
 
 router.patch("/kyc/:id/reject", async (req, res, next) => {
   try {
-    const { reason } = req.body;
+    const reason = sanitizeMultiline(req.body.reason || "Rejected by admin", 2000);
     const [kyc] = await db.update(kycRecords)
-      .set({ status: "REJECTED", rejectionReason: reason || "Rejected by admin", updatedAt: new Date() })
+      .set({ status: "REJECTED", rejectionReason: reason, updatedAt: new Date() })
       .where(eq(kycRecords.id, req.params.id)).returning();
-    await db.insert(auditLogs).values({
-      userId: (req as any).user.id, action: "REJECT", resource: "kyc",
-      resourceId: req.params.id, newValues: { reason },
+    await writeAudit(req, {
+      action: "KYC_REJECT",
+      resource: "kyc",
+      resourceId: req.params.id,
+      newValues: { reason },
     });
     res.json({ success: true, data: kyc });
   } catch (err) { next(err); }
@@ -213,8 +227,11 @@ router.patch("/listings/:id/approve", async (req, res, next) => {
     const [listing] = await db.update(listings)
       .set({ status: "ACTIVE", publishedAt: new Date(), updatedAt: new Date() })
       .where(eq(listings.id, req.params.id)).returning();
-    await db.insert(auditLogs).values({
-      userId: (req as any).user.id, action: "APPROVE", resource: "listing", resourceId: req.params.id,
+    await writeAudit(req, {
+      action: "LISTING_APPROVE",
+      resource: "listing",
+      resourceId: req.params.id,
+      newValues: { status: "ACTIVE" },
     });
     res.json({ success: true, data: listing });
   } catch (err) { next(err); }
@@ -223,10 +240,35 @@ router.patch("/listings/:id/approve", async (req, res, next) => {
 router.patch("/listings/:id/reject", async (req, res, next) => {
   try {
     const [listing] = await db.update(listings)
-      .set({ status: "DRAFT", updatedAt: new Date() })
+      .set({ status: "REJECTED", updatedAt: new Date() })
       .where(eq(listings.id, req.params.id)).returning();
-    await db.insert(auditLogs).values({
-      userId: (req as any).user.id, action: "REJECT", resource: "listing", resourceId: req.params.id,
+    await writeAudit(req, {
+      action: "LISTING_REJECT",
+      resource: "listing",
+      resourceId: req.params.id,
+      newValues: { status: "REJECTED" },
+    });
+    res.json({ success: true, data: listing });
+  } catch (err) { next(err); }
+});
+
+router.patch("/listings/:id/verify", async (req, res, next) => {
+  try {
+    const adminId = req.user!.id;
+    const { verified = true } = req.body;
+    const [listing] = await db.update(listings)
+      .set({
+        isVerified: Boolean(verified),
+        verifiedAt: verified ? new Date() : null,
+        verifiedById: verified ? adminId : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(listings.id, req.params.id)).returning();
+    await writeAudit(req, {
+      action: verified ? "LISTING_VERIFY" : "LISTING_UNVERIFY",
+      resource: "listing",
+      resourceId: req.params.id,
+      newValues: { isVerified: Boolean(verified) },
     });
     res.json({ success: true, data: listing });
   } catch (err) { next(err); }
@@ -237,8 +279,11 @@ router.patch("/listings/:id/suspend", async (req, res, next) => {
     const [listing] = await db.update(listings)
       .set({ status: "SUSPENDED", updatedAt: new Date() })
       .where(eq(listings.id, req.params.id)).returning();
-    await db.insert(auditLogs).values({
-      userId: (req as any).user.id, action: "SUSPEND", resource: "listing", resourceId: req.params.id,
+    await writeAudit(req, {
+      action: "LISTING_SUSPEND",
+      resource: "listing",
+      resourceId: req.params.id,
+      newValues: { status: "SUSPENDED" },
     });
     res.json({ success: true, data: listing });
   } catch (err) { next(err); }
@@ -274,11 +319,12 @@ router.get("/escrow", async (req, res, next) => {
 
 router.patch("/escrow/:id/force-release", async (req, res, next) => {
   try {
-    const { notes } = req.body;
+    const notes = sanitizeMultiline(req.body.notes, 5000);
     if (!notes) return res.status(400).json({ success: false, error: "Admin notes required" });
 
     const [escrow] = await db.select().from(escrowAccounts).where(eq(escrowAccounts.id, req.params.id)).limit(1);
     if (!escrow) throw new AppError("Not found", 404, "NOT_FOUND");
+    const previousStatus = escrow.status;
 
     await db.update(escrowAccounts)
       .set({ status: "RELEASED", releasedAt: new Date(), adminNotes: notes, updatedAt: new Date() })
@@ -288,9 +334,12 @@ router.patch("/escrow/:id/force-release", async (req, res, next) => {
       escrowId: req.params.id, type: "RELEASE", status: "COMPLETED",
       amount: escrow.sellerPayoutAmount ?? escrow.totalAmount, currency: escrow.currency, processedAt: new Date(),
     });
-    await db.insert(auditLogs).values({
-      userId: (req as any).user.id, action: "APPROVE", resource: "escrow",
-      resourceId: req.params.id, newValues: { notes, action: "force_release" },
+    await writeAudit(req, {
+      action: "ESCROW_FORCE_RELEASE",
+      resource: "escrow",
+      resourceId: req.params.id,
+      oldValues: { status: previousStatus },
+      newValues: { status: "RELEASED", notes },
     });
     res.json({ success: true, message: "Funds released to seller" });
   } catch (err) { next(err); }
@@ -298,11 +347,12 @@ router.patch("/escrow/:id/force-release", async (req, res, next) => {
 
 router.patch("/escrow/:id/force-refund", async (req, res, next) => {
   try {
-    const { notes } = req.body;
+    const notes = sanitizeMultiline(req.body.notes, 5000);
     if (!notes) return res.status(400).json({ success: false, error: "Admin notes required" });
 
     const [escrow] = await db.select().from(escrowAccounts).where(eq(escrowAccounts.id, req.params.id)).limit(1);
     if (!escrow) throw new AppError("Not found", 404, "NOT_FOUND");
+    const previousStatus = escrow.status;
 
     await db.update(escrowAccounts)
       .set({ status: "REFUNDED", refundedAt: new Date(), adminNotes: notes, updatedAt: new Date() })
@@ -311,9 +361,12 @@ router.patch("/escrow/:id/force-refund", async (req, res, next) => {
       escrowId: req.params.id, type: "REFUND", status: "COMPLETED",
       amount: escrow.totalAmount, currency: escrow.currency, processedAt: new Date(),
     });
-    await db.insert(auditLogs).values({
-      userId: (req as any).user.id, action: "REJECT", resource: "escrow",
-      resourceId: req.params.id, newValues: { notes, action: "force_refund" },
+    await writeAudit(req, {
+      action: "ESCROW_FORCE_REFUND",
+      resource: "escrow",
+      resourceId: req.params.id,
+      oldValues: { status: previousStatus },
+      newValues: { status: "REFUNDED", notes },
     });
     res.json({ success: true, message: "Funds refunded to buyer" });
   } catch (err) { next(err); }
@@ -391,13 +444,6 @@ router.get("/audit-logs", async (req, res, next) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXCHANGE RATES
 // ═══════════════════════════════════════════════════════════════════════════════
-router.get("/exchange-rates", async (req, res, next) => {
-  try {
-    const rates = await db.select().from(exchangeRates);
-    res.json({ success: true, data: rates });
-  } catch (err) { next(err); }
-});
-
 router.put("/exchange-rates", async (req, res, next) => {
   try {
     const { from: fromCurrency, to: toCurrency, rate } = req.body;
@@ -417,8 +463,9 @@ router.put("/exchange-rates", async (req, res, next) => {
         .values({ fromCurrency, toCurrency, rate: String(rate) }).returning();
     }
 
-    await db.insert(auditLogs).values({
-      userId: (req as any).user.id, action: "UPDATE", resource: "exchange_rate",
+    await writeAudit(req, {
+      action: "EXCHANGE_RATE_UPDATE",
+      resource: "exchange_rate",
       newValues: { fromCurrency, toCurrency, rate },
     });
     res.json({ success: true, data: updated });

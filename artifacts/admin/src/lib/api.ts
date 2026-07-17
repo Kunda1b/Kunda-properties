@@ -26,65 +26,66 @@ adminApi.interceptors.response.use(
   }
 );
 
-// Auth
+// Auth — uses regular API for login (admin auth is role-based)
 export const authApi = {
   login: (d: any) => axios.post(`${BASE_URL}/api/auth/login`, d),
-  getMe: () => adminApi.get("/me"),
+  getMe: () => axios.get(`${BASE_URL}/api/auth/me`),
 };
 
 // Users
 export const usersApi = {
   getAll: (p?: any) => adminApi.get("/users", { params: p }),
-  getOne: (id: string) => adminApi.get(`/users/${id}`),
-  update: (id: string, d: any) => adminApi.patch(`/users/${id}`, d),
-  suspend: (id: string) => adminApi.post(`/users/${id}/suspend`),
-  restore: (id: string) => adminApi.post(`/users/${id}/restore`),
+  suspend: (id: string) => adminApi.patch(`/users/${id}/suspend`, { suspend: true }),
+  restore: (id: string) => adminApi.patch(`/users/${id}/suspend`, { suspend: false }),
 };
 
 // KYC
 export const kycAdminApi = {
   getPending: (p?: any) => adminApi.get("/kyc", { params: p }),
-  getOne: (id: string) => adminApi.get(`/kyc/${id}`),
-  verify: (id: string, d: any) => adminApi.post(`/kyc/${id}/verify`, d),
+  verify: (id: string) => adminApi.patch(`/kyc/${id}/verify`),
+  reject: (id: string, reason?: string) => adminApi.patch(`/kyc/${id}/reject`, { reason }),
 };
 
 // Listings
 export const listingsAdminApi = {
   getAll: (p?: any) => adminApi.get("/listings", { params: p }),
-  getOne: (id: string) => adminApi.get(`/listings/${id}`),
-  approve: (id: string, d?: any) => adminApi.post(`/listings/${id}/approve`, d),
-  reject: (id: string, d?: any) => adminApi.post(`/listings/${id}/reject`, d),
-  deactivate: (id: string) => adminApi.post(`/listings/${id}/deactivate`),
+  approve: (id: string) => adminApi.patch(`/listings/${id}/approve`),
+  reject: (id: string) => adminApi.patch(`/listings/${id}/reject`),
+  verify: (id: string, d?: any) => adminApi.patch(`/listings/${id}/verify`, d),
+  suspend: (id: string) => adminApi.patch(`/listings/${id}/suspend`),
 };
 
 // Escrow
 export const escrowAdminApi = {
   getAll: (p?: any) => adminApi.get("/escrow", { params: p }),
-  getOne: (id: string) => adminApi.get(`/escrow/${id}`),
-  release: (id: string) => adminApi.post(`/escrow/${id}/release`),
-  refund: (id: string) => adminApi.post(`/escrow/${id}/refund`),
+  forceRelease: (id: string, notes: string) => adminApi.patch(`/escrow/${id}/force-release`, { notes }),
+  forceRefund: (id: string, notes: string) => adminApi.patch(`/escrow/${id}/force-refund`, { notes }),
 };
 
 // Documents
 export const documentsAdminApi = {
   getAll: (p?: any) => adminApi.get("/documents", { params: p }),
-  verify: (id: string) => adminApi.post(`/documents/${id}/verify`),
 };
 
 // Analytics
 export const analyticsApi = {
-  getOverview: () => adminApi.get("/analytics/overview"),
-  getRevenue: (p?: any) => adminApi.get("/analytics/revenue", { params: p }),
-  getUserGrowth: () => adminApi.get("/analytics/user-growth"),
-  getListingsStats: () => adminApi.get("/analytics/listings"),
+  getOverview: () => adminApi.get("/stats"),
+  getDetails: () => adminApi.get("/analytics"),
 };
 
 // Notifications
 export const notificationsAdminApi = {
-  send: (d: any) => adminApi.get("/notifications", { data: d }),
+  send: (d: any) => adminApi.post("/notifications/broadcast", d),
 };
 
 // Audit
 export const auditApi = {
   getAll: (p?: any) => adminApi.get("/audit-logs", { params: p }),
+};
+
+// Exchange Rates
+export const ratesAdminApi = {
+  getAll: () => adminApi.get("/exchange-rates"),
+  update: (from: string, to: string, rate: number) =>
+    adminApi.put("/exchange-rates", { from, to, rate }),
 };

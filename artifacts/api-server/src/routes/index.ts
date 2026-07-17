@@ -8,9 +8,15 @@ import searchRouter from "./search.js";
 import savedRouter from "./saved.js";
 import offersRouter from "./offers.js";
 import escrowRouter from "./escrow.js";
+import exchangeRatesRouter from "./exchange-rates.js";
 import notificationsRouter from "./notifications.js";
 import documentsRouter from "./documents.js";
 import adminRouter from "./admin.js";
+import messagesRouter from "./messages.js";
+import viewingsRouter from "./viewings.js";
+import agentsRouter from "./agents.js";
+import neighbourhoodsRouter from "./neighbourhoods.js";
+import analyticsRouter from "./analytics.js";
 
 const router = Router();
 
@@ -23,6 +29,12 @@ router.use("/search", searchRouter);
 router.use("/saved", savedRouter);
 router.use("/offers", offersRouter);
 router.use("/escrow", escrowRouter);
+router.use("/messages", messagesRouter);
+router.use("/viewings", viewingsRouter);
+router.use("/agents", agentsRouter);
+router.use("/neighbourhoods", neighbourhoodsRouter);
+router.use("/analytics", analyticsRouter);
+router.use("/exchange-rates", exchangeRatesRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/documents", documentsRouter);
 router.use("/admin", adminRouter);

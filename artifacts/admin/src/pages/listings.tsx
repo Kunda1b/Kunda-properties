@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Building2, CheckCircle, XCircle, MapPin } from "lucide-react";
+import { Building2, CheckCircle, XCircle, MapPin, BadgeCheck, ShieldOff } from "lucide-react";
 import { AdminHeader } from "@/components/AdminHeader";
 import { listingsAdminApi } from "@/lib/api";
 import { LISTING_STATUS_COLORS, formatPrice } from "@/lib/utils";
@@ -28,13 +28,20 @@ export default function ListingsPage() {
     onError: () => toast.error("Failed to reject"),
   });
 
+  const verifyMutation = useMutation({
+    mutationFn: ({ id, verified }: { id: string; verified: boolean }) =>
+      listingsAdminApi.verify(id, { verified }),
+    onSuccess: () => { toast.success("Listing verification updated"); qc.invalidateQueries({ queryKey: ["admin-listings"] }); },
+    onError: () => toast.error("Failed to update verification"),
+  });
+
   const listings = data?.listings || data || [];
 
   return (
     <div>
       <AdminHeader title="Listings" subtitle="Review and manage property listings" />
       <div className="flex flex-wrap gap-2 mb-6">
-        {["PENDING_REVIEW", "ACTIVE", "REJECTED", "DRAFT", "SOLD"].map((s) => (
+        {["PENDING_REVIEW", "ACTIVE", "DRAFT", "SOLD", "SUSPENDED"].map((s) => (
           <button
             key={s}
             onClick={() => setStatus(s)}
@@ -64,7 +71,12 @@ export default function ListingsPage() {
                   : <span className="text-xl">🏠</span>}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 text-sm truncate">{listing.title}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-gray-900 text-sm truncate">{listing.title}</p>
+                  {listing.isVerified && (
+                    <BadgeCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                  )}
+                </div>
                 <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
                   <MapPin className="w-3 h-3" />
                   <span>{listing.region}</span>
@@ -75,6 +87,23 @@ export default function ListingsPage() {
                 <span className={`badge ${LISTING_STATUS_COLORS[listing.status] || "bg-gray-100 text-gray-600"}`}>
                   {listing.status?.replace(/_/g, " ")}
                 </span>
+                {listing.status === "ACTIVE" && (
+                  <button
+                    onClick={() => verifyMutation.mutate({ id: listing.id, verified: !listing.isVerified })}
+                    disabled={verifyMutation.isPending}
+                    className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg ${
+                      listing.isVerified
+                        ? "text-gray-600 bg-gray-100 hover:bg-gray-200"
+                        : "text-blue-600 bg-blue-50 hover:bg-blue-100"
+                    }`}
+                  >
+                    {listing.isVerified ? (
+                      <><ShieldOff className="w-3.5 h-3.5" /> Unverify</>
+                    ) : (
+                      <><BadgeCheck className="w-3.5 h-3.5" /> Verify</>
+                    )}
+                  </button>
+                )}
                 {listing.status === "PENDING_REVIEW" && (
                   <>
                     <button

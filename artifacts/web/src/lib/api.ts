@@ -119,3 +119,31 @@ export const documentsApi = {
   getUrl: (id: string) => api.get(`/documents/${id}/url`),
   delete: (id: string) => api.delete(`/documents/${id}`),
 };
+
+export const messagesApi = {
+  getConversations: () => api.get("/messages/conversations"),
+  getConversation: (id: string) => api.get(`/messages/conversations/${id}`),
+  start: (d: any) => api.post("/messages/start", d),
+  reply: (convId: string, message: string) => api.post(`/messages/conversations/${convId}`, { message }),
+  unreadCount: () => api.get("/messages/unread-count"),
+};
+
+export const viewingsApi = {
+  getAll: () => api.get("/viewings"),
+  request: (d: any) => api.post("/viewings", d),
+  respond: (id: string, d: any) => api.patch(`/viewings/${id}/respond`, d),
+};
+
+export const agentsApi = {
+  getAll: () => api.get("/agents"),
+  getOne: (id: string) => api.get(`/agents/${id}`),
+};
+
+export const ratesApi = {
+  getAll: () => api.get("/admin/exchange-rates"),
+};
+
+export const neighbourhoodsApi = {
+  getAll: (region?: string) => api.get("/neighbourhoods", { params: { region } }),
+  getOne: (area: string) => api.get(`/neighbourhoods/${area}`),
+};

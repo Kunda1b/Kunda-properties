@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Heart, MapPin, BedDouble, Bath, Maximize, Shield } from "lucide-react";
+import { Heart, MapPin, BedDouble, Bath, Maximize, Shield, BadgeCheck } from "lucide-react";
 import { cn, formatPrice, formatArea } from "@/lib/utils";
 
 interface Props { listing: any; className?: string; index?: number; isSaved?: boolean; onToggleSave?: (id: string) => void; }
@@ -25,6 +25,11 @@ export function PropertyCard({ listing, className, isSaved, onToggleSave }: Prop
             <span className="badge bg-white/90 text-gray-700 text-xs">
               {listing.propertyType?.charAt(0) + listing.propertyType?.slice(1).toLowerCase()}
             </span>
+            {listing.isVerified && (
+              <span className="badge bg-blue-600 text-white text-xs flex items-center gap-1">
+                <BadgeCheck className="w-3 h-3" /> Verified
+              </span>
+            )}
             {listing.titleDeedAvailable && (
               <span className="badge bg-kunda-700 text-white text-xs"><Shield className="w-3 h-3" /> Title Deed</span>
             )}

@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { body } from "express-validator";
 import bcrypt from "bcryptjs";
-import rateLimit from "express-rate-limit";
 import { db } from "@workspace/db";
 import { users, userProfiles, sessions } from "@workspace/db/schema";
 import { eq, and, isNull, gt } from "drizzle-orm";
@@ -10,16 +9,10 @@ import { authenticate } from "../middleware/authenticate.js";
 import { generateTokens, verifyRefreshToken } from "../lib/jwt.js";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
+import { authLimiter } from "../middleware/rateLimiters.js";
+import { sanitizeText } from "../lib/sanitize.js";
 
 const router = Router();
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: "Too many attempts, try again in 15 minutes" },
-});
 
 // ── POST /auth/register ───────────────────────────────────────────────────────
 router.post(
@@ -36,17 +29,22 @@ router.post(
     try {
       const { email, password, firstName, lastName, role, diasporaCountry, phone } = req.body;
 
+      // Never allow self-registration as admin
+      const safeRole = ["BUYER", "SELLER", "AGENT"].includes(role) ? role : "BUYER";
+
       const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email.toLowerCase())).limit(1);
       if (existing) throw new AppError("Email already registered", 409, "EMAIL_EXISTS");
 
       const passwordHash = await bcrypt.hash(password, 12);
       const [user] = await db.insert(users).values({
         email: email.toLowerCase(), passwordHash, phone: phone || null,
-        role: role || "BUYER", diasporaCountry: diasporaCountry || null,
+        role: safeRole, diasporaCountry: diasporaCountry || null,
       }).returning();
 
       const [profile] = await db.insert(userProfiles).values({
-        userId: user.id, firstName, lastName,
+        userId: user.id,
+        firstName: sanitizeText(firstName, 50),
+        lastName: sanitizeText(lastName, 50),
       }).returning();
 
       logger.info({ userId: user.id }, "New user registered");

@@ -7,6 +7,9 @@ import { authenticate } from "../middleware/authenticate.js";
 import { validate } from "../middleware/validate.js";
 import { AppError } from "../lib/errors.js";
 import { notify } from "../lib/notify.js";
+import { offersLimiter } from "../middleware/rateLimiters.js";
+import { sanitizeMultiline } from "../lib/sanitize.js";
+import { writeAudit } from "../lib/audit.js";
 
 const router = Router();
 router.use(authenticate);
@@ -67,15 +70,18 @@ router.get("/my", async (req, res, next) => {
 // ── POST /offers ──────────────────────────────────────────────────────────────
 router.post(
   "/",
+  offersLimiter,
   validate([
-    body("listingId").notEmpty(),
+    body("listingId").notEmpty().isLength({ max: 64 }),
     body("amount").isNumeric().isFloat({ min: 0 }),
     body("currency").isIn(["GMD", "USD", "GBP", "EUR"]),
+    body("message").optional().isString().isLength({ max: 2000 }),
   ]),
   async (req, res, next) => {
     try {
-      const buyerId = (req as any).user.id;
-      const { listingId, amount, currency, message } = req.body;
+      const buyerId = req.user!.id;
+      const { listingId, amount, currency } = req.body;
+      const message = req.body.message ? sanitizeMultiline(req.body.message, 2000) : null;
 
       // KYC gate: buyer must be verified
       const [kyc] = await db.select({ status: kycRecords.status })
@@ -96,7 +102,7 @@ router.post(
 
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       const [offer] = await db.insert(offers).values({
-        listingId, buyerId, amount: String(amount), currency, message: message || null, expiresAt,
+        listingId, buyerId, amount: String(amount), currency, message, expiresAt,
       }).returning();
 
       // Notify seller
@@ -107,17 +113,27 @@ router.post(
         { offerId: offer.id, listingId },
       );
 
+      await writeAudit(req, {
+        action: "OFFER_CREATE",
+        resource: "offer",
+        resourceId: offer.id,
+        newValues: { listingId, amount, currency },
+      });
+
       res.status(201).json({ success: true, data: offer });
     } catch (err) { next(err); }
   },
 );
 
 // ── PATCH /offers/:offerId/respond ────────────────────────────────────────────
-router.patch("/:offerId/respond", async (req, res, next) => {
+router.patch("/:offerId/respond", offersLimiter, async (req, res, next) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user!.id;
     const { offerId } = req.params;
-    const { action, counterAmount, counterMessage } = req.body;
+    const { action, counterAmount } = req.body;
+    const counterMessage = req.body.counterMessage
+      ? sanitizeMultiline(req.body.counterMessage, 2000)
+      : undefined;
 
     const [offer] = await db.query.offers.findMany({
       where: (o, { eq: eqFn }) => eqFn(o.id, offerId),
@@ -157,6 +173,13 @@ router.patch("/:offerId/respond", async (req, res, next) => {
     if (notifTitle) {
       await notify(offer.buyerId, notifTitle, notifBody, { offerId: offer.id, listingId: offer.listingId });
     }
+
+    await writeAudit(req, {
+      action: `OFFER_${String(action).toUpperCase()}`,
+      resource: "offer",
+      resourceId: offerId,
+      newValues: updateData,
+    });
 
     res.json({ success: true, data: updated });
   } catch (err) { next(err); }

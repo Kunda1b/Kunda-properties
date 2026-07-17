@@ -1,8 +1,17 @@
 import jwt, { SignOptions } from "jsonwebtoken";
 import { AppError } from "./errors.js";
 
-const JWT_SECRET = process.env.SESSION_SECRET ?? "dev-kunda-secret-change-me";
-const JWT_REFRESH_SECRET = (process.env.SESSION_SECRET ?? "dev-kunda-secret-change-me") + "_refresh";
+const DEV_FALLBACK = "dev-kunda-secret-change-me";
+const rawSecret = process.env.SESSION_SECRET;
+
+if (process.env.NODE_ENV === "production" && (!rawSecret || rawSecret === DEV_FALLBACK || rawSecret.length < 32)) {
+  throw new Error(
+    "SESSION_SECRET must be set to a strong random value (≥32 chars) in production.",
+  );
+}
+
+const JWT_SECRET = rawSecret ?? DEV_FALLBACK;
+const JWT_REFRESH_SECRET = JWT_SECRET + "_refresh";
 
 export interface TokenPayload {
   sub: string;

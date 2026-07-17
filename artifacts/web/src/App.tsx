@@ -18,6 +18,7 @@ import LoginPage from "@/pages/auth/login";
 import RegisterPage from "@/pages/auth/register";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import AuthCallbackPage from "@/pages/auth/callback";
+import { AgentsListPage, AgentProfilePage } from "@/pages/agents";
 import NotFound from "@/pages/not-found";
 
 // Pages — dashboard
@@ -31,6 +32,8 @@ import KycPage from "@/pages/dashboard/kyc";
 import ProfilePage from "@/pages/dashboard/profile";
 import NotificationsPage from "@/pages/dashboard/notifications";
 import DocumentsPage from "@/pages/dashboard/documents";
+import MessagesPage from "@/pages/dashboard/messages";
+import ViewingsPage from "@/pages/dashboard/viewings";
 
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -62,6 +65,10 @@ function Router() {
       <Route path="/listings/:id">
         {(params) => <ListingDetailPage id={params.id} />}
       </Route>
+      <Route path="/agents" component={AgentsListPage} />
+      <Route path="/agents/:id">
+        {(params) => <AgentProfilePage id={params.id} />}
+      </Route>
       <Route path="/auth/login" component={LoginPage} />
       <Route path="/auth/register" component={RegisterPage} />
       <Route path="/auth/callback" component={AuthCallbackPage} />
@@ -72,6 +79,9 @@ function Router() {
       </Route>
       <Route path="/dashboard/listings/new">
         <DashboardLayout><NewListingPage /></DashboardLayout>
+      </Route>
+      <Route path="/dashboard/listings/edit/:id">
+        {(params) => <DashboardLayout><EditListingPage id={params.id} /></DashboardLayout>}
       </Route>
       <Route path="/dashboard/listings">
         <DashboardLayout><MyListingsPage /></DashboardLayout>
@@ -90,6 +100,12 @@ function Router() {
       </Route>
       <Route path="/dashboard/notifications">
         <DashboardLayout><NotificationsPage /></DashboardLayout>
+      </Route>
+      <Route path="/dashboard/messages">
+        <DashboardLayout><MessagesPage /></DashboardLayout>
+      </Route>
+      <Route path="/dashboard/viewings">
+        <DashboardLayout><ViewingsPage /></DashboardLayout>
       </Route>
       <Route path="/dashboard/profile">
         <DashboardLayout><ProfilePage /></DashboardLayout>

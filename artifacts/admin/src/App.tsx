@@ -4,6 +4,7 @@ import { Toaster } from "react-hot-toast";
 import { useState } from "react";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { useAdminStore } from "@/lib/store/admin.store";
+import { useIdleTimeout } from "@/hooks/use-idle-timeout";
 
 // Pages
 import LoginPage from "@/pages/login";
@@ -25,7 +26,9 @@ const queryClient = new QueryClient({
 
 function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = useAdminStore((s) => s.user);
-  if (!user) {
+  useIdleTimeout();
+
+  if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
     window.location.href = import.meta.env.BASE_URL + "login";
     return null;
   }

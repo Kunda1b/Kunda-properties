@@ -30,6 +30,7 @@ export function Navbar() {
           <Link href="/" className="font-display text-2xl font-bold text-kunda-700">Kunda<span className="text-sand-400">.</span></Link>
           <nav className="hidden md:flex items-center gap-8">
             <Link href="/listings" className="text-sm font-medium text-gray-700 hover:text-kunda-600">Properties</Link>
+            <Link href="/agents" className="text-sm font-medium text-gray-700 hover:text-kunda-600">Agents</Link>
             <Link href="/how-it-works" className="text-sm font-medium text-gray-700 hover:text-kunda-600">How It Works</Link>
           </nav>
           <div className="hidden md:flex items-center gap-3">
@@ -65,6 +66,7 @@ export function Navbar() {
       {open && (
         <div className="md:hidden bg-white border-t border-gray-100 px-4 pb-6 pt-4 space-y-2">
           <Link href="/listings" onClick={() => setOpen(false)} className="block py-2 text-gray-700 font-medium">Properties</Link>
+          <Link href="/agents" onClick={() => setOpen(false)} className="block py-2 text-gray-700 font-medium">Agents</Link>
           <Link href="/how-it-works" onClick={() => setOpen(false)} className="block py-2 text-gray-700 font-medium">How It Works</Link>
           {user ? (
             <>

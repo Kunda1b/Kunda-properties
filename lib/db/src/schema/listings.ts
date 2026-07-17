@@ -43,6 +43,11 @@ export const listings = pgTable("listings", {
   diasporaHighlights:  text("diaspora_highlights").array().default([]),
   viewCount:           integer("view_count").notNull().default(0),
   savedCount:          integer("saved_count").notNull().default(0),
+  enquiryCount:        integer("enquiry_count").notNull().default(0),
+  isVerified:          boolean("is_verified").notNull().default(false),
+  verifiedAt:          timestamp("verified_at"),
+  verifiedById:        text("verified_by_id"),
+  virtualTourUrl:      text("virtual_tour_url"),
   aiSummary:           text("ai_summary"),
   publishedAt:         timestamp("published_at"),
   createdAt:           timestamp("created_at").defaultNow().notNull(),
@@ -95,6 +100,7 @@ export const priceHistory = pgTable("price_history", {
 // ─── Relations ───────────────────────────────────────────────────────────────
 export const listingsRelations = relations(listings, ({ one, many }) => ({
   seller:       one(users, { fields: [listings.sellerId], references: [users.id] }),
+  verifiedBy:   one(users, { fields: [listings.verifiedById], references: [users.id], relationName: "listingVerifier" }),
   images:       many(listingImages),
   videos:       many(listingVideos),
   savedBy:      many(savedListings),

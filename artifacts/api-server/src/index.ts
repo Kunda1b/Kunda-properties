@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { refreshExchangeRates } from "./lib/exchange-rates";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,8 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Refresh exchange rates every hour
+  refreshExchangeRates().catch(() => {});
+  setInterval(() => { refreshExchangeRates().catch(() => {}); }, 3600_000);
 });

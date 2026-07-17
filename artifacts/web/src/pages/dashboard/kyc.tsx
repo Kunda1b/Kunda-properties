@@ -61,7 +61,7 @@ function VerificationForm({ onDone }: { onDone: () => void }) {
   });
 
   const uploadDocMutation = useMutation({
-    mutationFn: (payload: { imageUrl: string; side: string }) => kycApi.uploadDoc(payload),
+    mutationFn: (payload: { imageUrl: string; side: string; mimeType?: string }) => kycApi.uploadDoc(payload),
   });
 
   const submitMutation = useMutation({
@@ -84,7 +84,12 @@ function VerificationForm({ onDone }: { onDone: () => void }) {
   const handleUpload = async (side: "front" | "back" | "selfie") => {
     const url = form[side === "front" ? "idFrontUrl" : side === "back" ? "idBackUrl" : "selfieImageUrl"];
     if (!url) return;
-    await uploadDocMutation.mutateAsync({ imageUrl: url, side });
+    const path = url.split("?")[0].toLowerCase();
+    let mimeType = "image/jpeg";
+    if (path.endsWith(".png")) mimeType = "image/png";
+    else if (path.endsWith(".webp")) mimeType = "image/webp";
+    else if (path.endsWith(".heic")) mimeType = "image/heic";
+    await uploadDocMutation.mutateAsync({ imageUrl: url, side, mimeType });
   };
 
   const steps = ["Identity", "ID Documents", "Selfie", "Review"];

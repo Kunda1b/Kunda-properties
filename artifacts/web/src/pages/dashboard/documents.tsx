@@ -25,12 +25,26 @@ const STATUS_COLOR: Record<string, string> = {
   PENDING: "bg-gray-100 text-gray-600",
 };
 
+function guessMimeFromUrl(url: string): string | undefined {
+  const path = url.split("?")[0].toLowerCase();
+  if (path.endsWith(".pdf")) return "application/pdf";
+  if (path.endsWith(".png")) return "image/png";
+  if (path.endsWith(".webp")) return "image/webp";
+  if (path.endsWith(".jpg") || path.endsWith(".jpeg")) return "image/jpeg";
+  if (path.endsWith(".heic")) return "image/heic";
+  return undefined;
+}
+
 function UploadModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ type: "OTHER", title: "", fileUrl: "" });
+  const [form, setForm] = useState({ type: "OTHER", title: "", fileUrl: "", mimeType: "application/pdf" });
 
   const uploadMutation = useMutation({
-    mutationFn: () => documentsApi.upload(form),
+    mutationFn: () =>
+      documentsApi.upload({
+        ...form,
+        mimeType: form.mimeType || guessMimeFromUrl(form.fileUrl) || "application/pdf",
+      }),
     onSuccess: () => {
       toast.success("Document uploaded");
       qc.invalidateQueries({ queryKey: ["my-documents"] });
@@ -61,8 +75,21 @@ function UploadModal({ onClose }: { onClose: () => void }) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">File URL</label>
             <input className="input-field" placeholder="https://…" type="url" value={form.fileUrl}
-              onChange={(e) => setForm({ ...form, fileUrl: e.target.value })} />
-            <p className="text-xs text-gray-400 mt-1">Upload your file to Google Drive, Dropbox, or similar, then paste the shareable link here.</p>
+              onChange={(e) => {
+                const fileUrl = e.target.value;
+                const guessed = guessMimeFromUrl(fileUrl);
+                setForm({ ...form, fileUrl, ...(guessed ? { mimeType: guessed } : {}) });
+              }} />
+            <p className="text-xs text-gray-400 mt-1">Direct https link to PDF or image (max 10MB). Prefer URLs ending in .pdf/.jpg/.png.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">File type</label>
+            <select className="input-field" value={form.mimeType} onChange={(e) => setForm({ ...form, mimeType: e.target.value })}>
+              <option value="application/pdf">PDF</option>
+              <option value="image/jpeg">JPEG</option>
+              <option value="image/png">PNG</option>
+              <option value="image/webp">WebP</option>
+            </select>
           </div>
           <button
             onClick={() => uploadMutation.mutate()}

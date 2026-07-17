@@ -37,6 +37,9 @@ const step3Schema = z.object({
   hasWater: z.boolean().optional(),
   hasInternet: z.boolean().optional(),
   hasSecurity: z.boolean().optional(),
+  virtualTourUrl: z.string().optional(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
 });
 
 type Step1 = z.infer<typeof step1Schema>;
@@ -182,6 +185,22 @@ function Step3Form({ onNext, onBack }: { onNext: (d: Step3) => void; onBack: () 
           </select>
         </div>
       </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Virtual Tour URL <span className="text-gray-400 font-normal">(optional)</span></label>
+        <input {...register("virtualTourUrl")} className="input-field" placeholder="https://www.youtube.com/watch?v=..." />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Latitude <span className="text-gray-400 font-normal">(optional)</span></label>
+          <input {...register("latitude", { valueAsNumber: true, setValueAs: (v) => v === "" ? null : Number(v) })} type="number" step="any" className="input-field" placeholder="e.g. 13.4438" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Longitude <span className="text-gray-400 font-normal">(optional)</span></label>
+          <input {...register("longitude", { valueAsNumber: true, setValueAs: (v) => v === "" ? null : Number(v) })} type="number" step="any" className="input-field" placeholder="e.g. -16.6817" />
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Bedrooms <span className="text-gray-400 font-normal">(optional)</span></label>
