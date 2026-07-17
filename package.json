@@ -1,36 +1,19 @@
 {
-  "name": "kunda-properties",
-  "version": "1.0.0",
-  "private": true,
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
   "scripts": {
-    "dev": "turbo run dev --parallel",
-    "build": "turbo run build",
-    "start": "turbo run start",
-    "lint": "turbo run lint",
-    "test": "turbo run test",
-    "typecheck": "turbo run typecheck",
-    "db:generate": "npm run db:generate --workspace=@kunda/database",
-    "db:migrate:dev": "npm run db:migrate:dev --workspace=@kunda/database",
-    "db:migrate": "npm run db:migrate --workspace=@kunda/database",
-    "db:seed": "npm run db:seed --workspace=@kunda/database",
-    "db:studio": "npm run db:studio --workspace=@kunda/database",
-    "db:reset": "npm run db:reset --workspace=@kunda/database",
-    "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down",
-    "docker:build": "docker compose up -d --build",
-    "clean": "turbo run clean"
+    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
+    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
-  "workspaces": [
-    "apps/*",
-    "services/*",
-    "packages/*"
-  ],
+  "private": true,
+  "dependencies": {
+    "@replit/connectors-sdk": "^0.4.1"
+  },
   "devDependencies": {
-    "turbo": "^2.0.0",
-    "prettier": "^3.2.5",
-    "eslint": "^8.57.0",
-    "@typescript-eslint/eslint-plugin": "^7.7.0",
-    "@typescript-eslint/parser": "^7.7.0",
-    "typescript": "^5.4.5"
+    "prettier": "^3.9.5",
+    "typescript": "~5.9.3"
   }
 }
