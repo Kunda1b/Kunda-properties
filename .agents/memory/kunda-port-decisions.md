@@ -1,28 +1,38 @@
 ---
 name: Kunda port decisions
-description: Architecture and CSS decisions made when porting Kunda Properties (Vercel Turborepo → Replit pnpm workspace)
+description: Key choices made when porting the Vercel Turborepo to Replit pnpm workspace
 ---
 
-## Routing
-- Web app at `/` (previewPath `/`), admin at `/admin/` (previewPath `/admin/`)
-- Screenshot tool: pass `path` RELATIVE to previewPath — admin login is `path: "/login"` not `/admin/login`
-- Wouter router in admin uses `base={import.meta.env.BASE_URL.replace(/\/$/, "")}`
-- `router.push(...)` → `const [, setLocation] = useLocation(); setLocation("/path")`
-- `usePathname()` → `useLocation()[0]`
+## Monorepo Structure
+- `artifacts/web` — React + Vite buyer portal (port from `$PORT`)
+- `artifacts/admin` — React + Vite admin dashboard
+- `artifacts/api-server` — Express + Drizzle API, builds via `build.mjs` (esbuild)
+- `lib/db` — shared DB package (`@workspace/db`), schema at `lib/db/src/schema/`
 
-## Tailwind v4 theme
-- Custom colors live in `@theme inline` as `--color-kunda-*` / `--color-sand-*` CSS variables
-- ALL shade steps used in `@apply` directives MUST be defined in `@theme inline` — missing a shade (e.g. `kunda-500`) causes a Vite build error: "Cannot apply unknown utility class"
-- Font families: `--font-display: 'Playfair Display'`; add Google Font link to `index.html`
+## Frontend API Routing
+- Vite proxy: `/api` → api-server port
+- All API calls use `axios` with base `/api` — no hardcoded localhost
+- Auth store in `artifacts/web/src/lib/store/auth.store.ts` — `setTokens`, `loginSuccess`, `logout`
 
-## API / backend
-- No backend microservices ported yet — 6 Express services remain in `.migration-backup/services/`
-- Frontend API calls use relative base `""` so `/api/*` routes through Replit proxy to api-server artifact
-- `VITE_API_URL` env var overrides the base URL for external API
+## Routes in App.tsx (web)
+- Public: `/`, `/listings`, `/listings/:id`, `/auth/login`, `/auth/register`, `/auth/callback`
+- Dashboard (auth-gated): `/dashboard`, `/dashboard/listings`, `/dashboard/listings/new`, `/dashboard/offers`, `/dashboard/escrow`, `/dashboard/kyc`, `/dashboard/documents`, `/dashboard/notifications`, `/dashboard/profile`
+- `DashboardLayout` redirects to `/auth/login` if no user in auth store
 
-## Admin app specifics
-- `react-hot-toast` used for toasts (not shadcn Toaster)
-- `recharts` installed for analytics charts
-- Admin store (`useAdminStore`) uses `localStorage` key `kunda-admin-auth`
+## Auth Callback Page
+- `/auth/callback` reads `?access=TOKEN&refresh=TOKEN` from URL
+- Calls `authApi.getMe()` after storing tokens, then `loginSuccess()` and redirects to `/dashboard`
 
-**Why:** Straight port, no OpenAPI codegen — axios calls api-server directly, same pattern as the original Next.js app calling the gateway at port 4000.
+## Notification Bell
+- Both `Navbar.tsx` and `DashboardNav.tsx` poll `/api/notifications?limit=1` every 30s
+- Use `unreadCount` from response to show badge
+- Shared React Query key: `["notif-count"]`
+
+## Listing Videos Relation Fix
+- `lib/db/src/schema/listings.ts` needed `listingVideosRelations` (inverse of `listingsRelations.videos: many(listingVideos)`)
+- Without it, Drizzle throws "not enough information to infer relation" at query time
+
+## Design System Classes
+- `btn-primary`, `btn-outline`, `input-field`, `badge` — defined in `index.css`
+- `font-display` = Cormorant Garamond (serif display)
+- Colors: `kunda-*` (green), `sand-*` (warm gold)

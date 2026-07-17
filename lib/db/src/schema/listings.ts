@@ -105,6 +105,10 @@ export const listingImagesRelations = relations(listingImages, ({ one }) => ({
   listing: one(listings, { fields: [listingImages.listingId], references: [listings.id] }),
 }));
 
+export const listingVideosRelations = relations(listingVideos, ({ one }) => ({
+  listing: one(listings, { fields: [listingVideos.listingId], references: [listings.id] }),
+}));
+
 export const savedListingsRelations = relations(savedListings, ({ one }) => ({
   user:    one(users, { fields: [savedListings.userId], references: [users.id] }),
   listing: one(listings, { fields: [savedListings.listingId], references: [listings.id] }),

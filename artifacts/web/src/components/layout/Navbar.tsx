@@ -1,12 +1,25 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Bell } from "lucide-react";
 import { useAuthStore } from "@/lib/store/auth.store";
+import { useQuery } from "@tanstack/react-query";
+import { notificationsApi } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
   const [, navigate] = useLocation();
   const { user, logout } = useAuthStore();
+
+  const { data: notifData } = useQuery({
+    queryKey: ["notif-count"],
+    queryFn: () => notificationsApi.getAll({ limit: 1 }).then((r) => r.data.data),
+    refetchInterval: 30_000,
+    enabled: !!user,
+    retry: false,
+  });
+
+  const unreadCount: number = notifData?.unreadCount ?? 0;
 
   const handleLogout = () => { logout(); navigate("/"); };
 
@@ -22,8 +35,20 @@ export function Navbar() {
           <div className="hidden md:flex items-center gap-3">
             {user ? (
               <>
-                <Link href="/dashboard" className="text-sm font-medium text-gray-700">Dashboard</Link>
-                <button onClick={handleLogout} className="text-sm text-red-600">Sign Out</button>
+                {/* Notification bell */}
+                <Link href="/dashboard/notifications" className="relative p-2 text-gray-500 hover:text-kunda-700 rounded-lg hover:bg-kunda-50">
+                  <Bell className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <span className={cn(
+                      "absolute -top-0.5 -right-0.5 bg-kunda-600 text-white text-xs font-bold rounded-full flex items-center justify-center",
+                      unreadCount > 9 ? "w-5 h-5 text-[10px]" : "w-4 h-4"
+                    )}>
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </Link>
+                <Link href="/dashboard" className="text-sm font-medium text-gray-700 hover:text-kunda-600">Dashboard</Link>
+                <button onClick={handleLogout} className="text-sm text-red-600 hover:text-red-700">Sign Out</button>
               </>
             ) : (
               <>
@@ -42,7 +67,12 @@ export function Navbar() {
           <Link href="/listings" onClick={() => setOpen(false)} className="block py-2 text-gray-700 font-medium">Properties</Link>
           <Link href="/how-it-works" onClick={() => setOpen(false)} className="block py-2 text-gray-700 font-medium">How It Works</Link>
           {user ? (
-            <Link href="/dashboard" onClick={() => setOpen(false)} className="btn-primary block text-center mt-2">Dashboard</Link>
+            <>
+              <Link href="/dashboard/notifications" onClick={() => setOpen(false)} className="flex items-center gap-2 py-2 text-gray-700 font-medium">
+                <Bell className="w-4 h-4" /> Notifications {unreadCount > 0 && <span className="bg-kunda-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{unreadCount}</span>}
+              </Link>
+              <Link href="/dashboard" onClick={() => setOpen(false)} className="btn-primary block text-center mt-2">Dashboard</Link>
+            </>
           ) : (
             <>
               <Link href="/auth/login" onClick={() => setOpen(false)} className="btn-outline block text-center">Sign In</Link>

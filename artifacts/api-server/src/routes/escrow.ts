@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { body } from "express-validator";
 import { db } from "@workspace/db";
-import { escrowAccounts, escrowMilestones, transactions, listings, offers } from "@workspace/db/schema";
-import { eq, and, or, inArray } from "drizzle-orm";
+import { escrowAccounts, escrowMilestones, transactions, listings, offers, kycRecords } from "@workspace/db/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { authenticate } from "../middleware/authenticate.js";
 import { validate } from "../middleware/validate.js";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
+import { notify } from "../lib/notify.js";
 
 const router = Router();
 router.use(authenticate);
@@ -27,7 +28,7 @@ router.get("/my", async (req, res, next) => {
       },
       orderBy: (e, { desc }) => [desc(e.createdAt)],
     });
-    res.json({ success: true, data: myEscrows });
+    res.json({ success: true, data: { escrows: myEscrows } });
   } catch (err) { next(err); }
 });
 
@@ -63,6 +64,17 @@ router.post(
     try {
       const buyerId = (req as any).user.id;
       const { listingId, offerId } = req.body;
+
+      // KYC gate: buyer must be verified
+      const [kyc] = await db.select({ status: kycRecords.status })
+        .from(kycRecords).where(eq(kycRecords.userId, buyerId)).limit(1);
+      if (!kyc || kyc.status !== "VERIFIED") {
+        throw new AppError(
+          "Identity verification required before initiating escrow. Please complete KYC.",
+          403,
+          "KYC_REQUIRED",
+        );
+      }
 
       const [listing] = await db.select().from(listings).where(eq(listings.id, listingId)).limit(1);
       if (!listing || listing.status !== "ACTIVE")
@@ -104,7 +116,6 @@ router.post(
         inspectionDeadline, referenceNumber, status: "INITIATED",
       }).returning();
 
-      // Create milestones
       await db.insert(escrowMilestones).values([
         { escrowId: escrow.id, title: "Initial Deposit", description: "Buyer funds escrow", amount: String(finalAmount), order: 1 },
         { escrowId: escrow.id, title: "Inspection Period", description: "14-day inspection window", amount: "0", order: 2 },
@@ -116,6 +127,14 @@ router.post(
         with: { milestones: { orderBy: (m: any, { asc }: any) => [asc(m.order)] }, listing: true },
         limit: 1,
       });
+
+      // Notify seller
+      await notify(
+        listing.sellerId,
+        "Escrow Initiated",
+        `A buyer has initiated escrow for "${listing.title}" (${referenceNumber}).`,
+        { escrowId: escrow.id, listingId },
+      );
 
       logger.info({ escrowId: escrow.id, buyerId, listingId }, "Escrow initiated");
       res.status(201).json({ success: true, data: result[0] });
@@ -132,10 +151,8 @@ router.post("/:escrowId/payment-intent", async (req, res, next) => {
     if (escrow.buyerId !== buyerId) throw new AppError("Access denied", 403, "FORBIDDEN");
     if (escrow.status !== "INITIATED") throw new AppError("Escrow is not in INITIATED state", 400, "INVALID_STATE");
 
-    // Stripe not configured — return a placeholder so the frontend can proceed
-    const amountInCents = Math.round(Number(escrow.totalAmount) * 100);
+    // Stripe not configured — stub marks as FUNDED
     const stubClientSecret = `pi_stub_${escrow.id}_secret_test`;
-
     await db.update(escrowAccounts)
       .set({ stripePaymentIntentId: `pi_stub_${escrow.id}`, status: "FUNDED", updatedAt: new Date() })
       .where(eq(escrowAccounts.id, escrow.id));
@@ -145,10 +162,18 @@ router.post("/:escrowId/payment-intent", async (req, res, next) => {
       amount: escrow.totalAmount, currency: escrow.currency, processedAt: new Date(),
     });
 
+    // Notify seller
+    await notify(
+      escrow.sellerId,
+      "Escrow Funded 💰",
+      `The buyer has funded escrow ${escrow.referenceNumber}. The 14-day inspection period begins now.`,
+      { escrowId: escrow.id },
+    );
+
     logger.info({ escrowId: escrow.id }, "Payment intent stub created, escrow marked FUNDED");
     res.json({
       success: true,
-      data: { clientSecret: stubClientSecret, amount: amountInCents, currency: escrow.currency, escrowId: escrow.id },
+      data: { clientSecret: stubClientSecret, amount: Math.round(Number(escrow.totalAmount) * 100), currency: escrow.currency, escrowId: escrow.id },
     });
   } catch (err) { next(err); }
 });
@@ -166,6 +191,13 @@ router.post("/:escrowId/approve-release", async (req, res, next) => {
     await db.update(escrowAccounts)
       .set({ status: "APPROVED", updatedAt: new Date() })
       .where(eq(escrowAccounts.id, escrow.id));
+
+    await notify(
+      escrow.sellerId,
+      "Release Approved ✅",
+      `The buyer has approved fund release for escrow ${escrow.referenceNumber}. Payout is being processed.`,
+      { escrowId: escrow.id },
+    );
 
     res.json({ success: true, message: "Release approved. Admin will complete payout." });
   } catch (err) { next(err); }
@@ -185,6 +217,15 @@ router.post("/:escrowId/dispute",
       await db.update(escrowAccounts)
         .set({ status: "DISPUTED", notes: req.body.reason, updatedAt: new Date() })
         .where(eq(escrowAccounts.id, escrow.id));
+
+      // Notify the other party
+      const otherPartyId = userId === escrow.buyerId ? escrow.sellerId : escrow.buyerId;
+      await notify(
+        otherPartyId,
+        "Dispute Raised ⚠️",
+        `A dispute has been raised on escrow ${escrow.referenceNumber}. Our team will review within 48 hours.`,
+        { escrowId: escrow.id },
+      );
 
       res.json({ success: true, message: "Dispute raised. Our team will review within 48 hours." });
     } catch (err) { next(err); }

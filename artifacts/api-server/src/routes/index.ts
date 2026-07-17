@@ -8,6 +8,8 @@ import searchRouter from "./search.js";
 import savedRouter from "./saved.js";
 import offersRouter from "./offers.js";
 import escrowRouter from "./escrow.js";
+import notificationsRouter from "./notifications.js";
+import documentsRouter from "./documents.js";
 import adminRouter from "./admin.js";
 
 const router = Router();
@@ -21,6 +23,8 @@ router.use("/search", searchRouter);
 router.use("/saved", savedRouter);
 router.use("/offers", offersRouter);
 router.use("/escrow", escrowRouter);
+router.use("/notifications", notificationsRouter);
+router.use("/documents", documentsRouter);
 router.use("/admin", adminRouter);
 
 export default router;

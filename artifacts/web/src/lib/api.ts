@@ -78,7 +78,7 @@ export const listingsApi = {
   submit: (id: string) => api.post(`/listings/${id}/submit-review`),
   delete: (id: string) => api.delete(`/listings/${id}`),
   getMine: (p?: any) => api.get("/listings/my/all", { params: p }),
-  uploadImages: (id: string, images: any) => api.post(`/listings/${id}/images`, { images }),
+  uploadImages: (id: string, image: any) => api.post(`/listings/${id}/images`, image),
 };
 
 export const escrowApi = {

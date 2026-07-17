@@ -5,23 +5,29 @@ import { Providers } from "@/components/providers";
 import { DashboardNav } from "@/components/layout/DashboardNav";
 import { useAuthStore } from "@/lib/store/auth.store";
 
-// Pages
+// Pages — public
 import HomePage from "@/pages/home";
 import ListingsPage from "@/pages/listings";
 import ListingDetailPage from "@/pages/listing-detail";
 import LoginPage from "@/pages/auth/login";
 import RegisterPage from "@/pages/auth/register";
+import AuthCallbackPage from "@/pages/auth/callback";
+import NotFound from "@/pages/not-found";
+
+// Pages — dashboard
 import DashboardPage from "@/pages/dashboard/index";
 import MyListingsPage from "@/pages/dashboard/listings";
+import NewListingPage from "@/pages/dashboard/listings/new";
+import OffersPage from "@/pages/dashboard/offers";
 import EscrowPage from "@/pages/dashboard/escrow";
 import KycPage from "@/pages/dashboard/kyc";
 import ProfilePage from "@/pages/dashboard/profile";
-import NotFound from "@/pages/not-found";
+import NotificationsPage from "@/pages/dashboard/notifications";
+import DocumentsPage from "@/pages/dashboard/documents";
 
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
   if (!user) {
-    // Redirect to login if not authenticated
     window.location.href = "/auth/login";
     return null;
   }
@@ -43,6 +49,7 @@ function ListingsPageWrapper() {
 function Router() {
   return (
     <Switch>
+      {/* Public */}
       <Route path="/" component={HomePage} />
       <Route path="/listings" component={ListingsPageWrapper} />
       <Route path="/listings/:id">
@@ -50,11 +57,20 @@ function Router() {
       </Route>
       <Route path="/auth/login" component={LoginPage} />
       <Route path="/auth/register" component={RegisterPage} />
+      <Route path="/auth/callback" component={AuthCallbackPage} />
+
+      {/* Dashboard */}
       <Route path="/dashboard">
         <DashboardLayout><DashboardPage /></DashboardLayout>
       </Route>
+      <Route path="/dashboard/listings/new">
+        <DashboardLayout><NewListingPage /></DashboardLayout>
+      </Route>
       <Route path="/dashboard/listings">
         <DashboardLayout><MyListingsPage /></DashboardLayout>
+      </Route>
+      <Route path="/dashboard/offers">
+        <DashboardLayout><OffersPage /></DashboardLayout>
       </Route>
       <Route path="/dashboard/escrow">
         <DashboardLayout><EscrowPage /></DashboardLayout>
@@ -62,9 +78,16 @@ function Router() {
       <Route path="/dashboard/kyc">
         <DashboardLayout><KycPage /></DashboardLayout>
       </Route>
+      <Route path="/dashboard/documents">
+        <DashboardLayout><DocumentsPage /></DashboardLayout>
+      </Route>
+      <Route path="/dashboard/notifications">
+        <DashboardLayout><NotificationsPage /></DashboardLayout>
+      </Route>
       <Route path="/dashboard/profile">
         <DashboardLayout><ProfilePage /></DashboardLayout>
       </Route>
+
       <Route component={NotFound} />
     </Switch>
   );

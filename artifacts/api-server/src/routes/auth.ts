@@ -153,6 +153,97 @@ router.get("/me", authenticate, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /auth/google — redirect to Google OAuth ───────────────────────────────
+router.get("/google", (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    return res.status(501).json({
+      success: false,
+      error: "Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+      code: "OAUTH_NOT_CONFIGURED",
+    });
+  }
+  const baseUrl = process.env.PUBLIC_URL || `https://${req.headers.host}`;
+  const redirectUri = `${baseUrl}/api/auth/google/callback`;
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid email profile",
+    access_type: "offline",
+  });
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+});
+
+// ── GET /auth/google/callback ─────────────────────────────────────────────────
+router.get("/google/callback", async (req, res, next) => {
+  try {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      return res.redirect("/auth/login?error=oauth_not_configured");
+    }
+    const { code } = req.query;
+    if (!code) return res.redirect("/auth/login?error=oauth_cancelled");
+
+    const baseUrl = process.env.PUBLIC_URL || `https://${req.headers.host}`;
+    const redirectUri = `${baseUrl}/api/auth/google/callback`;
+
+    // Exchange code for tokens
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code: code as string,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      }),
+    });
+    const tokenData = await tokenRes.json() as any;
+    if (tokenData.error) {
+      logger.error({ error: tokenData.error }, "Google OAuth token exchange failed");
+      return res.redirect("/auth/login?error=oauth_failed");
+    }
+
+    // Get user info from Google
+    const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const googleUser = await userInfoRes.json() as any;
+
+    // Find or create user
+    let [user] = await db.select().from(users).where(eq(users.email, googleUser.email.toLowerCase())).limit(1);
+    if (!user) {
+      [user] = await db.insert(users).values({
+        email: googleUser.email.toLowerCase(),
+        passwordHash: `GOOGLE_OAUTH_${googleUser.sub}`,
+        role: "BUYER", isEmailVerified: true, isActive: true,
+      }).returning();
+      await db.insert(userProfiles).values({
+        userId: user.id,
+        firstName: googleUser.given_name || "",
+        lastName: googleUser.family_name || "",
+        avatarUrl: googleUser.picture || null,
+      });
+      logger.info({ userId: user.id }, "New user via Google OAuth");
+    }
+
+    const { accessToken, refreshToken } = generateTokens(user.id, user.role);
+    await db.insert(sessions).values({
+      userId: user.id, refreshToken,
+      userAgent: req.headers["user-agent"] || null,
+      ipAddress: req.ip || null,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+
+    // Redirect to frontend callback page with tokens
+    const frontendBase = baseUrl.replace(/\/api$/, "");
+    res.redirect(`${frontendBase}/auth/callback?access=${encodeURIComponent(accessToken)}&refresh=${encodeURIComponent(refreshToken)}`);
+  } catch (err) { next(err); }
+});
+
 // ── POST /auth/forgot-password ────────────────────────────────────────────────
 router.post("/forgot-password", authLimiter,
   validate([body("email").isEmail().normalizeEmail()]),
