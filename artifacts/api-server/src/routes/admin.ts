@@ -1,0 +1,428 @@
+import { Router } from "express";
+import { db } from "@workspace/db";
+import {
+  users, userProfiles, kycRecords, listings, listingImages,
+  escrowAccounts, transactions, documents, notifications, auditLogs, exchangeRates,
+} from "@workspace/db/schema";
+import { eq, and, or, ilike, inArray, sql, desc, asc } from "drizzle-orm";
+import { authenticate } from "../middleware/authenticate.js";
+import { requireRole } from "../middleware/authenticate.js";
+import { AppError } from "../lib/errors.js";
+import { logger } from "../lib/logger.js";
+
+const router = Router();
+router.use(authenticate, requireRole("ADMIN", "SUPER_ADMIN"));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATS / ANALYTICS
+// ═══════════════════════════════════════════════════════════════════════════════
+router.get("/stats", async (req, res, next) => {
+  try {
+    const [
+      [{ totalUsers }],
+      [{ totalListings }],
+      [{ totalEscrows }],
+      [{ pendingKyc }],
+      [{ pendingListings }],
+      [{ activeEscrows }],
+    ] = await Promise.all([
+      db.select({ totalUsers: sql<number>`count(*)::int` }).from(users),
+      db.select({ totalListings: sql<number>`count(*)::int` }).from(listings),
+      db.select({ totalEscrows: sql<number>`count(*)::int` }).from(escrowAccounts),
+      db.select({ pendingKyc: sql<number>`count(*)::int` }).from(kycRecords).where(eq(kycRecords.status, "SUBMITTED")),
+      db.select({ pendingListings: sql<number>`count(*)::int` }).from(listings).where(eq(listings.status, "PENDING_REVIEW")),
+      db.select({ activeEscrows: sql<number>`count(*)::int` }).from(escrowAccounts).where(inArray(escrowAccounts.status, ["FUNDED", "INSPECTING", "APPROVED"])),
+    ]);
+    res.json({ success: true, data: { totalUsers, totalListings, totalEscrows, pendingKyc, pendingListings, activeEscrows } });
+  } catch (err) { next(err); }
+});
+
+router.get("/analytics", async (req, res, next) => {
+  try {
+    const byType = await db
+      .select({ propertyType: listings.propertyType, count: sql<number>`count(*)::int` })
+      .from(listings).where(eq(listings.status, "ACTIVE")).groupBy(listings.propertyType);
+
+    const byRegion = await db
+      .select({ region: listings.region, count: sql<number>`count(*)::int` })
+      .from(listings).where(eq(listings.status, "ACTIVE")).groupBy(listings.region)
+      .orderBy(sql`count(*) desc`).limit(10);
+
+    const escrowTotals = await db
+      .select({ status: escrowAccounts.status, count: sql<number>`count(*)::int` })
+      .from(escrowAccounts).groupBy(escrowAccounts.status);
+
+    const recentListings = await db.select({ createdAt: listings.createdAt })
+      .from(listings).orderBy(desc(listings.createdAt)).limit(100);
+
+    res.json({ success: true, data: { byPropertyType: byType, byRegion, escrowByStatus: escrowTotals, recentListings } });
+  } catch (err) { next(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// USERS
+// ═══════════════════════════════════════════════════════════════════════════════
+router.get("/users", async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20, search, role } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    const conditions: any[] = [];
+    if (search) {
+      conditions.push(or(
+        ilike(users.email, `%${search}%`),
+        ilike(userProfiles.firstName, `%${search}%`),
+        ilike(userProfiles.lastName, `%${search}%`),
+      ));
+    }
+    if (role) conditions.push(eq(users.role, role as any));
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const results = await db.select({
+      id: users.id, email: users.email, role: users.role, isActive: users.isActive,
+      isSuspended: users.isSuspended, isEmailVerified: users.isEmailVerified,
+      diasporaCountry: users.diasporaCountry, createdAt: users.createdAt,
+      firstName: userProfiles.firstName, lastName: userProfiles.lastName, avatarUrl: userProfiles.avatarUrl,
+      kycStatus: kycRecords.status,
+    })
+    .from(users)
+    .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+    .leftJoin(kycRecords, eq(kycRecords.userId, users.id))
+    .where(where)
+    .orderBy(desc(users.createdAt))
+    .limit(limitNum).offset(offset);
+
+    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(users)
+      .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+      .leftJoin(kycRecords, eq(kycRecords.userId, users.id))
+      .where(where);
+
+    res.json({ success: true, data: { users: results, total: count, page: pageNum, limit: limitNum } });
+  } catch (err) { next(err); }
+});
+
+router.patch("/users/:id/suspend", async (req, res, next) => {
+  try {
+    const { suspend = true } = req.body;
+    const [user] = await db.update(users)
+      .set({ isSuspended: Boolean(suspend), updatedAt: new Date() })
+      .where(eq(users.id, req.params.id)).returning();
+    await db.insert(auditLogs).values({
+      userId: (req as any).user.id, action: suspend ? "SUSPEND" : "UNSUSPEND",
+      resource: "user", resourceId: req.params.id,
+    });
+    res.json({ success: true, data: user });
+  } catch (err) { next(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// KYC
+// ═══════════════════════════════════════════════════════════════════════════════
+router.get("/kyc", async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    const where = status ? eq(kycRecords.status, status as any) : eq(kycRecords.status, "SUBMITTED");
+
+    const results = await db.select({
+      id: kycRecords.id, userId: kycRecords.userId, status: kycRecords.status,
+      idType: kycRecords.idType, idNumber: kycRecords.idNumber, idCountry: kycRecords.idCountry,
+      verifiedAt: kycRecords.verifiedAt, rejectionReason: kycRecords.rejectionReason,
+      createdAt: kycRecords.createdAt, updatedAt: kycRecords.updatedAt,
+      userEmail: users.email, firstName: userProfiles.firstName, lastName: userProfiles.lastName,
+    })
+    .from(kycRecords)
+    .leftJoin(users, eq(users.id, kycRecords.userId))
+    .leftJoin(userProfiles, eq(userProfiles.userId, kycRecords.userId))
+    .where(where)
+    .orderBy(asc(kycRecords.createdAt))
+    .limit(limitNum).offset(offset);
+
+    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(kycRecords).where(where);
+    res.json({ success: true, data: { kyc: results, total: count, page: pageNum, limit: limitNum } });
+  } catch (err) { next(err); }
+});
+
+router.patch("/kyc/:id/verify", async (req, res, next) => {
+  try {
+    const [kyc] = await db.update(kycRecords)
+      .set({ status: "VERIFIED", verifiedAt: new Date(), updatedAt: new Date() })
+      .where(eq(kycRecords.id, req.params.id)).returning();
+    await db.insert(auditLogs).values({
+      userId: (req as any).user.id, action: "VERIFY", resource: "kyc", resourceId: req.params.id,
+    });
+    res.json({ success: true, data: kyc });
+  } catch (err) { next(err); }
+});
+
+router.patch("/kyc/:id/reject", async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    const [kyc] = await db.update(kycRecords)
+      .set({ status: "REJECTED", rejectionReason: reason || "Rejected by admin", updatedAt: new Date() })
+      .where(eq(kycRecords.id, req.params.id)).returning();
+    await db.insert(auditLogs).values({
+      userId: (req as any).user.id, action: "REJECT", resource: "kyc",
+      resourceId: req.params.id, newValues: { reason },
+    });
+    res.json({ success: true, data: kyc });
+  } catch (err) { next(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LISTINGS
+// ═══════════════════════════════════════════════════════════════════════════════
+router.get("/listings", async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20, search, status } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    const conditions: any[] = [];
+    if (status) conditions.push(eq(listings.status, status as any));
+    if (search) conditions.push(or(
+      ilike(listings.title, `%${search}%`),
+      ilike(listings.region, `%${search}%`),
+    ));
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const results = await db.query.listings.findMany({
+      where: () => where,
+      with: {
+        images: { limit: 1 },
+        seller: { with: { profile: { columns: { firstName: true, lastName: true } } } },
+      },
+      orderBy: (l, { desc: descFn }) => [descFn(l.updatedAt)],
+      limit: limitNum, offset,
+    });
+
+    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(listings).where(where);
+    res.json({ success: true, data: { listings: results, total: count, page: pageNum, limit: limitNum } });
+  } catch (err) { next(err); }
+});
+
+router.patch("/listings/:id/approve", async (req, res, next) => {
+  try {
+    const [listing] = await db.update(listings)
+      .set({ status: "ACTIVE", publishedAt: new Date(), updatedAt: new Date() })
+      .where(eq(listings.id, req.params.id)).returning();
+    await db.insert(auditLogs).values({
+      userId: (req as any).user.id, action: "APPROVE", resource: "listing", resourceId: req.params.id,
+    });
+    res.json({ success: true, data: listing });
+  } catch (err) { next(err); }
+});
+
+router.patch("/listings/:id/reject", async (req, res, next) => {
+  try {
+    const [listing] = await db.update(listings)
+      .set({ status: "DRAFT", updatedAt: new Date() })
+      .where(eq(listings.id, req.params.id)).returning();
+    await db.insert(auditLogs).values({
+      userId: (req as any).user.id, action: "REJECT", resource: "listing", resourceId: req.params.id,
+    });
+    res.json({ success: true, data: listing });
+  } catch (err) { next(err); }
+});
+
+router.patch("/listings/:id/suspend", async (req, res, next) => {
+  try {
+    const [listing] = await db.update(listings)
+      .set({ status: "SUSPENDED", updatedAt: new Date() })
+      .where(eq(listings.id, req.params.id)).returning();
+    await db.insert(auditLogs).values({
+      userId: (req as any).user.id, action: "SUSPEND", resource: "listing", resourceId: req.params.id,
+    });
+    res.json({ success: true, data: listing });
+  } catch (err) { next(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ESCROW
+// ═══════════════════════════════════════════════════════════════════════════════
+router.get("/escrow", async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    const where = status ? eq(escrowAccounts.status, status as any) : undefined;
+
+    const results = await db.query.escrowAccounts.findMany({
+      where: () => where,
+      with: {
+        listing: { columns: { title: true, region: true } },
+        buyer: { with: { profile: { columns: { firstName: true, lastName: true } } } },
+        seller: { with: { profile: { columns: { firstName: true, lastName: true } } } },
+      },
+      orderBy: (e, { desc: descFn }) => [descFn(e.createdAt)],
+      limit: limitNum, offset,
+    });
+
+    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(escrowAccounts).where(where);
+    res.json({ success: true, data: { escrows: results, total: count, page: pageNum, limit: limitNum } });
+  } catch (err) { next(err); }
+});
+
+router.patch("/escrow/:id/force-release", async (req, res, next) => {
+  try {
+    const { notes } = req.body;
+    if (!notes) return res.status(400).json({ success: false, error: "Admin notes required" });
+
+    const [escrow] = await db.select().from(escrowAccounts).where(eq(escrowAccounts.id, req.params.id)).limit(1);
+    if (!escrow) throw new AppError("Not found", 404, "NOT_FOUND");
+
+    await db.update(escrowAccounts)
+      .set({ status: "RELEASED", releasedAt: new Date(), adminNotes: notes, updatedAt: new Date() })
+      .where(eq(escrowAccounts.id, req.params.id));
+    await db.update(listings).set({ status: "SOLD", updatedAt: new Date() }).where(eq(listings.id, escrow.listingId));
+    await db.insert(transactions).values({
+      escrowId: req.params.id, type: "RELEASE", status: "COMPLETED",
+      amount: escrow.sellerPayoutAmount ?? escrow.totalAmount, currency: escrow.currency, processedAt: new Date(),
+    });
+    await db.insert(auditLogs).values({
+      userId: (req as any).user.id, action: "APPROVE", resource: "escrow",
+      resourceId: req.params.id, newValues: { notes, action: "force_release" },
+    });
+    res.json({ success: true, message: "Funds released to seller" });
+  } catch (err) { next(err); }
+});
+
+router.patch("/escrow/:id/force-refund", async (req, res, next) => {
+  try {
+    const { notes } = req.body;
+    if (!notes) return res.status(400).json({ success: false, error: "Admin notes required" });
+
+    const [escrow] = await db.select().from(escrowAccounts).where(eq(escrowAccounts.id, req.params.id)).limit(1);
+    if (!escrow) throw new AppError("Not found", 404, "NOT_FOUND");
+
+    await db.update(escrowAccounts)
+      .set({ status: "REFUNDED", refundedAt: new Date(), adminNotes: notes, updatedAt: new Date() })
+      .where(eq(escrowAccounts.id, req.params.id));
+    await db.insert(transactions).values({
+      escrowId: req.params.id, type: "REFUND", status: "COMPLETED",
+      amount: escrow.totalAmount, currency: escrow.currency, processedAt: new Date(),
+    });
+    await db.insert(auditLogs).values({
+      userId: (req as any).user.id, action: "REJECT", resource: "escrow",
+      resourceId: req.params.id, newValues: { notes, action: "force_refund" },
+    });
+    res.json({ success: true, message: "Funds refunded to buyer" });
+  } catch (err) { next(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DOCUMENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+router.get("/documents", async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const offset = (pageNum - 1) * limitNum;
+    const where = status ? eq(documents.status, status as any) : undefined;
+
+    const results = await db.query.documents.findMany({
+      where: () => where,
+      with: { uploadedBy: { with: { profile: { columns: { firstName: true, lastName: true } } } } },
+      orderBy: (d, { desc: descFn }) => [descFn(d.createdAt)],
+      limit: limitNum, offset,
+    });
+
+    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(documents).where(where);
+    res.json({ success: true, data: { documents: results, total: count, page: pageNum, limit: limitNum } });
+  } catch (err) { next(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NOTIFICATIONS BROADCAST
+// ═══════════════════════════════════════════════════════════════════════════════
+router.post("/notifications/broadcast", async (req, res, next) => {
+  try {
+    const { title, body, type = "IN_APP", userIds } = req.body;
+    if (!title || !body) return res.status(400).json({ success: false, error: "title and body are required" });
+
+    let targetUsers: { id: string }[] = [];
+    if (userIds && Array.isArray(userIds)) {
+      targetUsers = userIds.map((id: string) => ({ id }));
+    } else {
+      targetUsers = await db.select({ id: users.id }).from(users).where(eq(users.isActive, true));
+    }
+
+    if (targetUsers.length > 0) {
+      await db.insert(notifications).values(
+        targetUsers.map((u) => ({ userId: u.id, type: type as any, title, body, status: "SENT" as const, sentAt: new Date() })),
+      );
+    }
+
+    logger.info({ count: targetUsers.length, type }, "Broadcast notification sent");
+    res.json({ success: true, message: `Notification sent to ${targetUsers.length} users` });
+  } catch (err) { next(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUDIT LOGS
+// ═══════════════════════════════════════════════════════════════════════════════
+router.get("/audit-logs", async (req, res, next) => {
+  try {
+    const { page = 1, limit = 30, resource } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const offset = (pageNum - 1) * limitNum;
+    const where = resource ? eq(auditLogs.resource, String(resource)) : undefined;
+
+    const [logs, [{ count }]] = await Promise.all([
+      db.select().from(auditLogs).where(where).orderBy(desc(auditLogs.createdAt)).limit(limitNum).offset(offset),
+      db.select({ count: sql<number>`count(*)::int` }).from(auditLogs).where(where),
+    ]);
+
+    res.json({ success: true, data: { logs, total: count, page: pageNum, limit: limitNum } });
+  } catch (err) { next(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXCHANGE RATES
+// ═══════════════════════════════════════════════════════════════════════════════
+router.get("/exchange-rates", async (req, res, next) => {
+  try {
+    const rates = await db.select().from(exchangeRates);
+    res.json({ success: true, data: rates });
+  } catch (err) { next(err); }
+});
+
+router.put("/exchange-rates", async (req, res, next) => {
+  try {
+    const { from: fromCurrency, to: toCurrency, rate } = req.body;
+    if (!fromCurrency || !toCurrency || !rate)
+      return res.status(400).json({ success: false, error: "from, to, rate required" });
+
+    const [existing] = await db.select({ id: exchangeRates.id }).from(exchangeRates)
+      .where(and(eq(exchangeRates.fromCurrency, fromCurrency), eq(exchangeRates.toCurrency, toCurrency))).limit(1);
+
+    let updated;
+    if (existing) {
+      [updated] = await db.update(exchangeRates)
+        .set({ rate: String(rate), updatedAt: new Date() })
+        .where(eq(exchangeRates.id, existing.id)).returning();
+    } else {
+      [updated] = await db.insert(exchangeRates)
+        .values({ fromCurrency, toCurrency, rate: String(rate) }).returning();
+    }
+
+    await db.insert(auditLogs).values({
+      userId: (req as any).user.id, action: "UPDATE", resource: "exchange_rate",
+      newValues: { fromCurrency, toCurrency, rate },
+    });
+    res.json({ success: true, data: updated });
+  } catch (err) { next(err); }
+});
+
+export default router;
