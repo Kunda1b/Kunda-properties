@@ -44,14 +44,17 @@ api.interceptors.response.use(
         const newAccessToken = data.data.accessToken;
         setTokens(newAccessToken, data.data.refreshToken);
         processQueue(null, newAccessToken);
+        isRefreshing = false;
         originalRequest.headers = { ...originalRequest.headers, Authorization: `Bearer ${newAccessToken}` };
         return api(originalRequest);
       } catch (err) {
         processQueue(err as Error);
+        isRefreshing = false;
         useAuthStore.getState().logout();
-        if (typeof window !== "undefined") window.location.href = "/auth/login";
+        // Navigate only after all queued requests have been rejected
+        if (typeof window !== "undefined") window.location.replace("/auth/login");
         return Promise.reject(err);
-      } finally { isRefreshing = false; }
+      }
     }
     return Promise.reject(error);
   }

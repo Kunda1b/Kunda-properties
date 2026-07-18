@@ -2,8 +2,8 @@ import { Router } from "express";
 import { body } from "express-validator";
 import slugify from "slugify";
 import { db } from "@workspace/db";
-import { listings, listingImages, listingVideos, savedListings, priceHistory } from "@workspace/db/schema";
-import { eq, and, ne } from "drizzle-orm";
+import { listings, listingImages, listingVideos, savedListings, priceHistory, exchangeRates } from "@workspace/db/schema";
+import { eq, and, ne, sql } from "drizzle-orm";
 import { authenticate, requireSellerOrAgent } from "../middleware/authenticate.js";
 import { validate } from "../middleware/validate.js";
 import { AppError } from "../lib/errors.js";
@@ -17,10 +17,12 @@ router.get("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
     const [listing] = await db.query.listings.findMany({
-      where: (l, { or, eq: eqFn, ne: neFn }) =>
-        and(
+      where: (l, { or, eq: eqFn, ne: neFn, and: andFn, notInArray }) =>
+        andFn(
           or(eqFn(l.id, id), eqFn(l.slug, id)),
           neFn(l.status, "DRAFT"),
+          neFn(l.status, "WITHDRAWN"),
+          neFn(l.status, "SUSPENDED"),
         ),
       with: {
         images: { orderBy: (i, { asc }) => [asc(i.order)] },
@@ -31,8 +33,11 @@ router.get("/:id", async (req, res, next) => {
     }) as any[];
 
     if (!listing) throw new AppError("Listing not found", 404, "NOT_FOUND");
-    // Increment view count in background
-    db.update(listings).set({ viewCount: listing.viewCount + 1 }).where(eq(listings.id, listing.id)).catch(() => {});
+    // Atomic view count increment — avoids read-then-write race condition under concurrent requests
+    db.update(listings)
+      .set({ viewCount: sql`${listings.viewCount} + 1` })
+      .where(eq(listings.id, listing.id))
+      .catch(() => {});
     res.json({ success: true, data: listing });
   } catch (err) { next(err); }
 });
@@ -154,11 +159,30 @@ router.patch("/:id", async (req, res, next) => {
       ? (req.body.virtualTourUrl ? sanitizeUrl(req.body.virtualTourUrl) : null)
       : undefined;
 
+    // Recalculate priceUsd when price or currency changes
+    let recalcPriceUsd: string | undefined;
+    if (price !== undefined || currency) {
+      const effectivePrice = price !== undefined ? Number(price) : Number(existing.price);
+      const effectiveCurrency = currency || existing.currency;
+      if (effectiveCurrency === "USD") {
+        recalcPriceUsd = String(effectivePrice);
+      } else {
+        const [rateRow] = await db.select({ rate: exchangeRates.rate })
+          .from(exchangeRates)
+          .where(and(
+            eq(exchangeRates.fromCurrency, effectiveCurrency),
+            eq(exchangeRates.toCurrency, "USD"),
+          )).limit(1);
+        if (rateRow) recalcPriceUsd = String(effectivePrice * Number(rateRow.rate));
+      }
+    }
+
     const [updated] = await db.update(listings).set({
       ...(title && { title }), ...(description && { description }),
       ...(propertyType && { propertyType }),
       ...(price !== undefined && { price: String(price) }),
       ...(currency && { currency }),
+      ...(recalcPriceUsd !== undefined && { priceUsd: recalcPriceUsd }),
       ...(address && { address }), ...(region && { region }),
       ...(area !== undefined && { area: area ? sanitizeText(area, 100) : area }),
       ...(latitude !== undefined && { latitude: String(latitude) }),

@@ -104,11 +104,28 @@ function OfferCard({ offer, isSeller }: { offer: any; isSeller: boolean }) {
       {showCounter && (
         <div className="mt-3 bg-blue-50 rounded-lg p-4 space-y-2">
           <input type="number" placeholder={`Counter amount (${offer.currency})`} value={counterAmount}
-            onChange={(e) => setCounterAmount(e.target.value)} className="input-field text-sm" />
+            onChange={(e) => setCounterAmount(e.target.value)} className="input-field text-sm" min="0.01" step="any" />
+          {counterAmount && Number(counterAmount) <= 0 && (
+            <p className="text-red-600 text-xs">Counter amount must be greater than zero</p>
+          )}
+          {counterAmount && Number(counterAmount) === Number(offer.amount) && (
+            <p className="text-red-600 text-xs">Counter amount must differ from the original offer ({offer.currency} {Number(offer.amount).toLocaleString()})</p>
+          )}
           <textarea placeholder="Optional message…" value={counterMsg} onChange={(e) => setCounterMsg(e.target.value)}
             rows={2} className="input-field text-sm resize-none" />
-          <button onClick={() => respondMutation.mutate({ action: "counter", counterAmount, counterMessage: counterMsg })}
-            disabled={!counterAmount || respondMutation.isPending}
+          <button
+            onClick={() => {
+              const num = Number(counterAmount);
+              if (!counterAmount || isNaN(num) || num <= 0) return;
+              if (num === Number(offer.amount)) return;
+              respondMutation.mutate({ action: "counter", counterAmount, counterMessage: counterMsg });
+            }}
+            disabled={
+              !counterAmount ||
+              Number(counterAmount) <= 0 ||
+              Number(counterAmount) === Number(offer.amount) ||
+              respondMutation.isPending
+            }
             className="btn-primary text-xs py-1.5 px-4 flex items-center gap-1">
             {respondMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />} Send Counter
           </button>

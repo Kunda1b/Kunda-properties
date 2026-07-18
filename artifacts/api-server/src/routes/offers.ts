@@ -150,6 +150,16 @@ router.patch("/:offerId/respond", offersLimiter, async (req, res, next) => {
     let notifTitle = "";
     let notifBody = "";
 
+    if (action === "counter") {
+      const counterNum = Number(counterAmount);
+      if (!counterAmount || isNaN(counterNum) || counterNum <= 0) {
+        throw new AppError("Counter amount must be a positive number", 400, "INVALID_COUNTER_AMOUNT");
+      }
+      if (counterNum === Number(offer.amount)) {
+        throw new AppError("Counter amount must differ from the original offer amount", 400, "COUNTER_SAME_AMOUNT");
+      }
+    }
+
     if (action === "accept") {
       updateData = { status: "ACCEPTED", acceptedAt: now, updatedAt: now };
       await db.update(listings).set({ status: "UNDER_OFFER", updatedAt: now }).where(eq(listings.id, offer.listingId));
@@ -160,6 +170,7 @@ router.patch("/:offerId/respond", offersLimiter, async (req, res, next) => {
       notifTitle = "Offer Not Accepted";
       notifBody = `Your offer on "${offer.listing.title}" was not accepted.`;
     } else if (action === "counter") {
+      // Validation already done above
       if (!counterAmount) throw new AppError("Counter amount required", 400, "COUNTER_AMOUNT_REQUIRED");
       updateData = { status: "COUNTERED", counterAmount: String(counterAmount), counterMessage: counterMessage || null, updatedAt: now };
       notifTitle = "Counter-Offer Received";

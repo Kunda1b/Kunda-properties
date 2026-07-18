@@ -426,11 +426,16 @@ router.post("/notifications/broadcast", async (req, res, next) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 router.get("/audit-logs", async (req, res, next) => {
   try {
-    const { page = 1, limit = 30, resource } = req.query;
+    const { page = 1, limit = 30, resource, action, adminId } = req.query;
     const pageNum = Number(page);
     const limitNum = Number(limit);
     const offset = (pageNum - 1) * limitNum;
-    const where = resource ? eq(auditLogs.resource, String(resource)) : undefined;
+
+    const conditions: any[] = [];
+    if (resource) conditions.push(eq(auditLogs.resource, String(resource)));
+    if (action) conditions.push(eq(auditLogs.action, String(action)));
+    if (adminId) conditions.push(eq(auditLogs.userId, String(adminId)));
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
 
     const [logs, [{ count }]] = await Promise.all([
       db.select().from(auditLogs).where(where).orderBy(desc(auditLogs.createdAt)).limit(limitNum).offset(offset),

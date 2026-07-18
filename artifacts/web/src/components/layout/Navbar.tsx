@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, Bell } from "lucide-react";
+import { Menu, X, Bell, Building2, DollarSign, Shield, Handshake, FileText, User } from "lucide-react";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { useQuery } from "@tanstack/react-query";
 import { notificationsApi } from "@/lib/api";
@@ -22,6 +22,16 @@ export function Navbar() {
   const unreadCount: number = notifData?.unreadCount ?? 0;
 
   const handleLogout = () => { logout(); navigate("/"); };
+  const close = () => setOpen(false);
+
+  const dashboardLinks = [
+    { href: "/dashboard/offers", icon: Handshake, label: "Offers" },
+    { href: "/dashboard/listings", icon: Building2, label: "My Listings" },
+    { href: "/dashboard/escrow", icon: DollarSign, label: "Escrow" },
+    { href: "/dashboard/kyc", icon: Shield, label: "Verification" },
+    { href: "/dashboard/documents", icon: FileText, label: "Documents" },
+    { href: "/dashboard/profile", icon: User, label: "Profile" },
+  ];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md shadow-sm">
@@ -64,22 +74,37 @@ export function Navbar() {
         </div>
       </div>
       {open && (
-        <div className="md:hidden bg-white border-t border-gray-100 px-4 pb-6 pt-4 space-y-2">
-          <Link href="/listings" onClick={() => setOpen(false)} className="block py-2 text-gray-700 font-medium">Properties</Link>
-          <Link href="/agents" onClick={() => setOpen(false)} className="block py-2 text-gray-700 font-medium">Agents</Link>
-          <Link href="/how-it-works" onClick={() => setOpen(false)} className="block py-2 text-gray-700 font-medium">How It Works</Link>
+        <div className="md:hidden bg-white border-t border-gray-100 px-4 pb-6 pt-4 space-y-1">
+          {/* Public links */}
+          <Link href="/listings" onClick={close} className="block py-2 text-gray-700 font-medium">Properties</Link>
+          <Link href="/agents" onClick={close} className="block py-2 text-gray-700 font-medium">Agents</Link>
+          <Link href="/how-it-works" onClick={close} className="block py-2 text-gray-700 font-medium">How It Works</Link>
+
           {user ? (
             <>
-              <Link href="/dashboard/notifications" onClick={() => setOpen(false)} className="flex items-center gap-2 py-2 text-gray-700 font-medium">
-                <Bell className="w-4 h-4" /> Notifications {unreadCount > 0 && <span className="bg-kunda-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{unreadCount}</span>}
-              </Link>
-              <Link href="/dashboard" onClick={() => setOpen(false)} className="btn-primary block text-center mt-2">Dashboard</Link>
+              <div className="border-t border-gray-100 mt-3 pt-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">Dashboard</p>
+                <Link href="/dashboard" onClick={close} className="block py-2 text-gray-700 font-medium">Overview</Link>
+                <Link href="/dashboard/notifications" onClick={close} className="flex items-center gap-2 py-2 text-gray-700 font-medium">
+                  <Bell className="w-4 h-4" /> Notifications
+                  {unreadCount > 0 && <span className="bg-kunda-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+                </Link>
+                {dashboardLinks.map(({ href, icon: Icon, label }) => (
+                  <Link key={href} href={href} onClick={close} className="flex items-center gap-2 py-2 text-gray-700 font-medium">
+                    <Icon className="w-4 h-4 text-gray-400" /> {label}
+                  </Link>
+                ))}
+              </div>
+              <div className="border-t border-gray-100 pt-3 mt-1">
+                <button onClick={() => { handleLogout(); close(); }}
+                  className="w-full text-left py-2 text-red-600 font-medium">Sign Out</button>
+              </div>
             </>
           ) : (
-            <>
-              <Link href="/auth/login" onClick={() => setOpen(false)} className="btn-outline block text-center">Sign In</Link>
-              <Link href="/auth/register" onClick={() => setOpen(false)} className="btn-primary block text-center mt-2">Get Started</Link>
-            </>
+            <div className="border-t border-gray-100 mt-3 pt-3 space-y-2">
+              <Link href="/auth/login" onClick={close} className="btn-outline block text-center">Sign In</Link>
+              <Link href="/auth/register" onClick={close} className="btn-primary block text-center mt-2">Get Started</Link>
+            </div>
           )}
         </div>
       )}

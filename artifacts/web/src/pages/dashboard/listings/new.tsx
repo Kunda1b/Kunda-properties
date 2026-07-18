@@ -239,29 +239,47 @@ function Step3Form({ onNext, onBack }: { onNext: (d: Step3) => void; onBack: () 
   );
 }
 
+type UploadStatus = "idle" | "uploading" | "success" | "error";
+
 function Step4Images({ listingId, onDone }: { listingId: string; onDone: () => void }) {
   const [urls, setUrls] = useState<string[]>([""]);
+  const [statuses, setStatuses] = useState<UploadStatus[]>(["idle"]);
   const [saving, setSaving] = useState(false);
   const [, navigate] = useLocation();
 
-  const addImage = async (url: string, idx: number) => {
-    if (!url.trim()) return;
+  const updateStatus = (idx: number, status: UploadStatus) => {
+    setStatuses((prev) => { const next = [...prev]; next[idx] = status; return next; });
+  };
+
+  const uploadOne = async (url: string, idx: number): Promise<boolean> => {
+    if (!url.trim()) return true;
+    updateStatus(idx, "uploading");
     try {
       await listingsApi.uploadImages(listingId, { url, isPrimary: idx === 0, order: idx });
-    } catch { /* non-blocking */ }
+      updateStatus(idx, "success");
+      return true;
+    } catch {
+      updateStatus(idx, "error");
+      return false;
+    }
   };
 
   const handleFinish = async () => {
     setSaving(true);
-    try {
-      const validUrls = urls.filter((u) => u.trim());
-      await Promise.all(validUrls.map((u, i) => addImage(u, i)));
+    const validEntries = urls.map((u, i) => ({ url: u, idx: i })).filter(({ url }) => url.trim());
+    const results = await Promise.all(validEntries.map(({ url, idx }) => uploadOne(url, idx)));
+    setSaving(false);
+    const failed = results.filter((ok) => !ok).length;
+    if (failed === 0) {
       toast.success("Listing saved as draft! Submit it for review when ready.");
       navigate("/dashboard/listings");
-    } catch {
-      toast.error("Saved listing but some images failed. You can add them later.");
-      navigate("/dashboard/listings");
-    } finally { setSaving(false); }
+    } else {
+      toast.error(`${failed} image${failed > 1 ? "s" : ""} failed to upload — fix the URLs marked in red and retry, or save and add images later.`);
+    }
+  };
+
+  const STATUS_ICON: Record<UploadStatus, string> = {
+    idle: "", uploading: "⏳", success: "✅", error: "❌",
   };
 
   return (
@@ -271,7 +289,7 @@ function Step4Images({ listingId, onDone }: { listingId: string; onDone: () => v
       </p>
       <div className="space-y-2">
         {urls.map((url, i) => (
-          <div key={i} className="flex gap-2">
+          <div key={i} className="flex gap-2 items-center">
             <input
               type="url"
               placeholder="https://…"
@@ -280,19 +298,31 @@ function Step4Images({ listingId, onDone }: { listingId: string; onDone: () => v
                 const next = [...urls];
                 next[i] = e.target.value;
                 setUrls(next);
+                updateStatus(i, "idle");
               }}
-              className="input-field flex-1"
+              className={cn("input-field flex-1", statuses[i] === "error" && "border-red-400 bg-red-50")}
             />
+            {statuses[i] !== "idle" && (
+              <span className="text-sm flex-shrink-0">{STATUS_ICON[statuses[i]]}</span>
+            )}
+            {statuses[i] === "error" && (
+              <button type="button" onClick={() => uploadOne(url, i)} title="Retry"
+                className="text-xs px-2 py-1 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 flex-shrink-0">
+                Retry
+              </button>
+            )}
             {urls.length > 1 && (
-              <button type="button" onClick={() => setUrls(urls.filter((_, j) => j !== i))}
-                className="p-2 text-red-400 hover:text-red-600">
+              <button type="button" onClick={() => {
+                setUrls(urls.filter((_, j) => j !== i));
+                setStatuses(statuses.filter((_, j) => j !== i));
+              }} className="p-2 text-red-400 hover:text-red-600 flex-shrink-0">
                 <X className="w-4 h-4" />
               </button>
             )}
           </div>
         ))}
         {urls.length < 10 && (
-          <button type="button" onClick={() => setUrls([...urls, ""])}
+          <button type="button" onClick={() => { setUrls([...urls, ""]); setStatuses([...statuses, "idle"]); }}
             className="flex items-center gap-1 text-sm text-kunda-600 hover:text-kunda-700">
             <Plus className="w-4 h-4" /> Add another image
           </button>

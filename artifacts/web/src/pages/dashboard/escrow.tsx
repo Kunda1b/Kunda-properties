@@ -23,6 +23,7 @@ function EscrowCard({ escrow }: { escrow: any }) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
+  const [disputeCategory, setDisputeCategory] = useState("");
   const [showDisputeForm, setShowDisputeForm] = useState(false);
 
   const isBuyer = user?.id === escrow.buyerId;
@@ -41,7 +42,7 @@ function EscrowCard({ escrow }: { escrow: any }) {
   });
 
   const disputeMutation = useMutation({
-    mutationFn: () => escrowApi.dispute(escrow.id, disputeReason),
+    mutationFn: () => escrowApi.dispute(escrow.id, disputeCategory ? `[${disputeCategory}] ${disputeReason}` : disputeReason),
     onSuccess: () => { toast.success("Dispute raised. Our team will review within 48 hours."); qc.invalidateQueries({ queryKey: ["my-escrows"] }); setShowDisputeForm(false); },
     onError: (e: any) => toast.error(e?.response?.data?.error || "Failed to raise dispute"),
   });
@@ -158,17 +159,41 @@ function EscrowCard({ escrow }: { escrow: any }) {
 
           {showDisputeForm && (
             <div className="bg-red-50 rounded-lg p-4 space-y-3">
-              <p className="text-sm font-medium text-red-800">Describe the issue (min 20 characters)</p>
-              <textarea
-                value={disputeReason}
-                onChange={(e) => setDisputeReason(e.target.value)}
-                rows={3}
-                className="input-field resize-none text-sm"
-                placeholder="Explain the problem clearly…"
-              />
+              <p className="text-sm font-medium text-red-800">Raise a Dispute</p>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Issue Category</label>
+                <select
+                  value={disputeCategory}
+                  onChange={(e) => setDisputeCategory(e.target.value)}
+                  className="input-field text-sm"
+                >
+                  <option value="">Select a category…</option>
+                  <option value="Property condition mismatch">Property condition doesn't match listing</option>
+                  <option value="Seller unresponsive">Seller is unresponsive</option>
+                  <option value="Title deed issue">Title deed or ownership dispute</option>
+                  <option value="Fraudulent listing">Suspected fraud or misrepresentation</option>
+                  <option value="Inspection failed">Inspection revealed major defects</option>
+                  <option value="Other">Other issue</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Describe the issue <span className="text-gray-400 font-normal">({Math.max(0, 20 - disputeReason.length)} chars min)</span>
+                </label>
+                <textarea
+                  value={disputeReason}
+                  onChange={(e) => setDisputeReason(e.target.value)}
+                  rows={4}
+                  className="input-field resize-none text-sm"
+                  placeholder="Explain the problem clearly with as much detail as possible…"
+                />
+                {disputeReason.length > 0 && disputeReason.length < 20 && (
+                  <p className="text-xs text-red-600 mt-1">Please provide at least 20 characters ({20 - disputeReason.length} more needed)</p>
+                )}
+              </div>
               <button
                 onClick={() => disputeMutation.mutate()}
-                disabled={disputeReason.length < 20 || disputeMutation.isPending}
+                disabled={!disputeCategory || disputeReason.length < 20 || disputeMutation.isPending}
                 className="bg-red-600 text-white rounded-lg text-sm py-2 px-4 font-medium hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
               >
                 {disputeMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />} Submit Dispute

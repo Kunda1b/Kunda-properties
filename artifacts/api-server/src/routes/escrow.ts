@@ -164,25 +164,11 @@ router.post("/:escrowId/payment-intent", escrowLimiter, async (req, res, next) =
     if (escrow.status !== "INITIATED") throw new AppError("Escrow is not in INITIATED state", 400, "INVALID_STATE");
 
     if (!isStripeConfigured()) {
-      // Stripe not configured — stub mode for development
-      await db.update(escrowAccounts)
-        .set({ stripePaymentIntentId: `pi_stub_${escrow.id}`, status: "FUNDED", updatedAt: new Date() })
-        .where(eq(escrowAccounts.id, escrow.id));
-
-      await db.insert(transactions).values({
-        escrowId: escrow.id, type: "DEPOSIT", status: "COMPLETED",
-        amount: escrow.totalAmount, currency: escrow.currency, processedAt: new Date(),
-      });
-
-      await notify(escrow.sellerId, "Escrow Funded 💰",
-        `The buyer has funded escrow ${escrow.referenceNumber}. The 14-day inspection period begins now.`,
-        { escrowId: escrow.id },
-      );
-
-      logger.info({ escrowId: escrow.id }, "Payment intent stub (Stripe not configured)");
-      return res.json({
-        success: true,
-        data: { clientSecret: `pi_stub_${escrow.id}_secret`, amount: Math.round(Number(escrow.totalAmount) * 100), currency: escrow.currency, escrowId: escrow.id, mode: "stub" },
+      logger.warn({ escrowId: escrow.id }, "Payment attempted but Stripe is not configured");
+      return res.status(503).json({
+        success: false,
+        error: "Payment provider is not configured. The platform administrator needs to set STRIPE_SECRET_KEY to enable real payments.",
+        code: "PAYMENT_NOT_CONFIGURED",
       });
     }
 

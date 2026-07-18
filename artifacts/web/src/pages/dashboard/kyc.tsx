@@ -48,6 +48,7 @@ function StatusBanner({ status }: { status: string }) {
 
 function VerificationForm({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0);
+  const [step0Errors, setStep0Errors] = useState<Record<string,string>>({});
   const [form, setForm] = useState({
     idType: "PASSPORT",
     idNumber: "",
@@ -116,16 +117,22 @@ function VerificationForm({ onDone }: { onDone: () => void }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">First Name</label>
-              <input className="input-field" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+              <input className={cn("input-field", step0Errors.firstName && "border-red-300")} value={form.firstName}
+                onChange={(e) => { setForm({ ...form, firstName: e.target.value }); setStep0Errors((p) => ({ ...p, firstName: "" })); }} />
+              {step0Errors.firstName && <p className="text-red-500 text-xs mt-1">{step0Errors.firstName}</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Last Name</label>
-              <input className="input-field" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+              <input className={cn("input-field", step0Errors.lastName && "border-red-300")} value={form.lastName}
+                onChange={(e) => { setForm({ ...form, lastName: e.target.value }); setStep0Errors((p) => ({ ...p, lastName: "" })); }} />
+              {step0Errors.lastName && <p className="text-red-500 text-xs mt-1">{step0Errors.lastName}</p>}
             </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Date of Birth</label>
-            <input type="date" className="input-field" value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} />
+            <input type="date" className={cn("input-field", step0Errors.dateOfBirth && "border-red-300")} value={form.dateOfBirth}
+              onChange={(e) => { setForm({ ...form, dateOfBirth: e.target.value }); setStep0Errors((p) => ({ ...p, dateOfBirth: "" })); }} />
+            {step0Errors.dateOfBirth && <p className="text-red-500 text-xs mt-1">{step0Errors.dateOfBirth}</p>}
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">ID Type</label>
@@ -136,7 +143,9 @@ function VerificationForm({ onDone }: { onDone: () => void }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">ID Number</label>
-              <input className="input-field" value={form.idNumber} onChange={(e) => setForm({ ...form, idNumber: e.target.value })} />
+              <input className={cn("input-field", step0Errors.idNumber && "border-red-300")} value={form.idNumber}
+                onChange={(e) => { setForm({ ...form, idNumber: e.target.value }); setStep0Errors((p) => ({ ...p, idNumber: "" })); }} />
+              {step0Errors.idNumber && <p className="text-red-500 text-xs mt-1">{step0Errors.idNumber}</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Issuing Country</label>
@@ -146,8 +155,15 @@ function VerificationForm({ onDone }: { onDone: () => void }) {
             </div>
           </div>
           <button
-            onClick={() => setStep(1)}
-            disabled={!form.firstName || !form.lastName || !form.idNumber || !form.dateOfBirth}
+            onClick={() => {
+              const errs: Record<string,string> = {};
+              if (!form.firstName.trim()) errs.firstName = "First name is required";
+              if (!form.lastName.trim()) errs.lastName = "Last name is required";
+              if (!form.dateOfBirth) errs.dateOfBirth = "Date of birth is required";
+              if (!form.idNumber.trim()) errs.idNumber = "ID number is required";
+              setStep0Errors(errs);
+              if (Object.keys(errs).length === 0) setStep(1);
+            }}
             className="btn-primary w-full flex items-center justify-center gap-2">
             Next <ChevronRight className="w-4 h-4" />
           </button>

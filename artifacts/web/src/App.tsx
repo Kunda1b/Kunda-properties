@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Route, Switch } from "wouter";
+import { Route, Switch, Redirect } from "wouter";
 import { Toaster } from "react-hot-toast";
 import { Providers } from "@/components/providers";
 import { DashboardNav } from "@/components/layout/DashboardNav";
@@ -37,10 +37,7 @@ import ViewingsPage from "@/pages/dashboard/viewings";
 
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
-  if (!user) {
-    window.location.href = "/auth/login";
-    return null;
-  }
+  if (!user) return <Redirect to="/auth/login" />;
   return (
     <div className="min-h-screen bg-gray-50 flex">
       <DashboardNav />
@@ -69,8 +66,14 @@ function Router() {
       <Route path="/agents/:id">
         {(params) => <AgentProfilePage id={params.id} />}
       </Route>
+      <Route path="/how-it-works" component={HowItWorksPage} />
+      <Route path="/about" component={AboutPage} />
+      <Route path="/contact" component={ContactPage} />
+      <Route path="/privacy" component={PrivacyPage} />
+      <Route path="/terms" component={TermsPage} />
       <Route path="/auth/login" component={LoginPage} />
       <Route path="/auth/register" component={RegisterPage} />
+      <Route path="/auth/forgot-password" component={ForgotPasswordPage} />
       <Route path="/auth/callback" component={AuthCallbackPage} />
 
       {/* Dashboard */}
@@ -80,7 +83,7 @@ function Router() {
       <Route path="/dashboard/listings/new">
         <DashboardLayout><NewListingPage /></DashboardLayout>
       </Route>
-      <Route path="/dashboard/listings/edit/:id">
+      <Route path="/dashboard/listings/:id/edit">
         {(params) => <DashboardLayout><EditListingPage id={params.id} /></DashboardLayout>}
       </Route>
       <Route path="/dashboard/listings">

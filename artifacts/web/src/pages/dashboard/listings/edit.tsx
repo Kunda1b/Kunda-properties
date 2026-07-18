@@ -12,9 +12,30 @@ const REGIONS = [
   "Lower River Region","Central River Region","Upper River Region",
 ];
 
+// Validation rules (mirrors the Zod schemas in new.tsx)
+function validate(form: any): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (!form.title || form.title.trim().length < 10)
+    errors.title = "Title must be at least 10 characters";
+  if (form.title && form.title.trim().length > 200)
+    errors.title = "Title must be at most 200 characters";
+  if (!form.description || form.description.trim().length < 20)
+    errors.description = "Description must be at least 20 characters";
+  if (!form.region)
+    errors.region = "Region is required";
+  if (!form.address || !form.address.trim())
+    errors.address = "Address is required";
+  const price = Number(form.price);
+  if (!form.price || isNaN(price) || price <= 0)
+    errors.price = "Price must be a positive number";
+  return errors;
+}
+
 export default function EditListingPage({ id }: { id: string }) {
   const qc = useQueryClient();
   const [, navigate] = useLocation();
+  const [touched, setTouched] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["listing-edit", id],
@@ -73,7 +94,22 @@ export default function EditListingPage({ id }: { id: string }) {
     onError: (e: any) => toast.error(e?.response?.data?.error || "Failed to save"),
   });
 
-  const set = (key: string, val: any) => setForm((f: any) => ({ ...f, [key]: val }));
+  const set = (key: string, val: any) => {
+    const next = { ...form, [key]: val };
+    setForm(next);
+    if (touched) setFormErrors(validate(next));
+  };
+
+  const handleSave = () => {
+    setTouched(true);
+    const errors = validate(form);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error("Please fix the errors before saving");
+      return;
+    }
+    updateMutation.mutate();
+  };
 
   if (isError) return (
     <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -102,6 +138,14 @@ export default function EditListingPage({ id }: { id: string }) {
     </label>
   );
 
+  const Field = ({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) => (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      {children}
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  );
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center gap-3 mb-8">
@@ -111,93 +155,83 @@ export default function EditListingPage({ id }: { id: string }) {
 
       <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
         {/* Basic */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Property Type</label>
+        <Field label="Property Type">
           <select className="input-field" value={form.propertyType} onChange={(e) => set("propertyType", e.target.value)}>
             {PROPERTY_TYPES.map((t) => <option key={t} value={t}>{t.charAt(0) + t.slice(1).toLowerCase()}</option>)}
           </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-          <input className="input-field" value={form.title} onChange={(e) => set("title", e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-          <textarea className="input-field resize-none" rows={5} value={form.description} onChange={(e) => set("description", e.target.value)} />
-        </div>
+        </Field>
+        <Field label="Title" error={formErrors.title}>
+          <input className={cn("input-field", formErrors.title && "border-red-300")}
+            value={form.title} onChange={(e) => set("title", e.target.value)} />
+        </Field>
+        <Field label="Description" error={formErrors.description}>
+          <textarea className={cn("input-field resize-none", formErrors.description && "border-red-300")}
+            rows={5} value={form.description} onChange={(e) => set("description", e.target.value)} />
+        </Field>
 
         {/* Location */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
-            <select className="input-field" value={form.region} onChange={(e) => set("region", e.target.value)}>
+          <Field label="Region" error={formErrors.region}>
+            <select className={cn("input-field", formErrors.region && "border-red-300")}
+              value={form.region} onChange={(e) => set("region", e.target.value)}>
               <option value="">Select…</option>
               {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Area</label>
+          </Field>
+          <Field label="Area">
             <input className="input-field" value={form.area} onChange={(e) => set("area", e.target.value)} />
-          </div>
+          </Field>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-          <input className="input-field" value={form.address} onChange={(e) => set("address", e.target.value)} />
-        </div>
+        <Field label="Address" error={formErrors.address}>
+          <input className={cn("input-field", formErrors.address && "border-red-300")}
+            value={form.address} onChange={(e) => set("address", e.target.value)} />
+        </Field>
 
         {/* Pricing */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
-            <input type="number" className="input-field" value={form.price} onChange={(e) => set("price", e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+          <Field label="Price" error={formErrors.price}>
+            <input type="number" className={cn("input-field", formErrors.price && "border-red-300")}
+              value={form.price} onChange={(e) => set("price", e.target.value)} />
+          </Field>
+          <Field label="Currency">
             <select className="input-field" value={form.currency} onChange={(e) => set("currency", e.target.value)}>
               {["GMD","USD","GBP","EUR"].map((c) => <option key={c}>{c}</option>)}
             </select>
-          </div>
+          </Field>
         </div>
 
         {/* Specs */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Bedrooms</label>
+          <Field label="Bedrooms">
             <input type="number" min="0" className="input-field" value={form.bedrooms} onChange={(e) => set("bedrooms", e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Bathrooms</label>
+          </Field>
+          <Field label="Bathrooms">
             <input type="number" min="0" className="input-field" value={form.bathrooms} onChange={(e) => set("bathrooms", e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Land Size (m²)</label>
+          </Field>
+          <Field label="Land Size (m²)">
             <input type="number" min="0" className="input-field" value={form.landSizeSqm} onChange={(e) => set("landSizeSqm", e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Building Size (m²)</label>
+          </Field>
+          <Field label="Building Size (m²)">
             <input type="number" min="0" className="input-field" value={form.buildingSizeSqm} onChange={(e) => set("buildingSizeSqm", e.target.value)} />
-          </div>
+          </Field>
         </div>
 
         {/* Virtual Tour */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Virtual Tour URL</label>
+        <Field label="Virtual Tour URL">
           <input className="input-field" value={form.virtualTourUrl} onChange={(e) => set("virtualTourUrl", e.target.value)}
             placeholder="https://www.youtube.com/watch?v=..." />
-        </div>
+        </Field>
 
         {/* Map Coordinates */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
-            <input type="number" step="any" className="input-field" value={form.latitude} onChange={(e) => set("latitude", e.target.value)}
-              placeholder="e.g. 13.4438" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
-            <input type="number" step="any" className="input-field" value={form.longitude} onChange={(e) => set("longitude", e.target.value)}
-              placeholder="e.g. -16.6817" />
-          </div>
+          <Field label="Latitude">
+            <input type="number" step="any" className="input-field" value={form.latitude}
+              onChange={(e) => set("latitude", e.target.value)} placeholder="e.g. 13.4438" />
+          </Field>
+          <Field label="Longitude">
+            <input type="number" step="any" className="input-field" value={form.longitude}
+              onChange={(e) => set("longitude", e.target.value)} placeholder="e.g. -16.6817" />
+          </Field>
         </div>
 
         {/* Features */}
@@ -218,7 +252,7 @@ export default function EditListingPage({ id }: { id: string }) {
         <div className="flex gap-3 pt-2">
           <button onClick={() => navigate("/dashboard/listings")} className="btn-outline flex-1">Cancel</button>
           <button
-            onClick={() => updateMutation.mutate()}
+            onClick={handleSave}
             disabled={updateMutation.isPending}
             className="btn-primary flex-1 flex items-center justify-center gap-2"
           >

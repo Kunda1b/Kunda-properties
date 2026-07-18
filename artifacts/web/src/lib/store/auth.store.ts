@@ -40,7 +40,9 @@ export const useAuthStore = create<AuthState>()(
       storage: createJSONStorage(() =>
         typeof window !== "undefined" ? localStorage : { getItem: () => null, setItem: () => {}, removeItem: () => {} }
       ),
-      partialize: (s) => ({ user: s.user, accessToken: s.accessToken, refreshToken: s.refreshToken }),
+      // accessToken intentionally excluded from localStorage — keep in memory only (XSS safety).
+      // The interceptor auto-refreshes using the persisted refreshToken on page reload.
+      partialize: (s) => ({ user: s.user, refreshToken: s.refreshToken }),
     }
   )
 );
