@@ -8,7 +8,7 @@ export const propertyStatusEnum = pgEnum("property_status", ["DRAFT", "PENDING_R
 
 export const listings = pgTable("listings", {
   id:                  text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  sellerId:            text("seller_id").notNull().references(() => users.id),
+  sellerId:            text("seller_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   title:               text("title").notNull(),
   slug:                text("slug").notNull().unique(),
   description:         text("description").notNull(),
@@ -57,6 +57,10 @@ export const listings = pgTable("listings", {
   index("listings_status_idx").on(t.status),
   index("listings_region_idx").on(t.region),
   index("listings_type_idx").on(t.propertyType),
+  index("listings_price_idx").on(t.price),
+  index("listings_area_idx").on(t.area),
+  index("listings_verified_idx").on(t.isVerified),
+  index("listings_created_idx").on(t.createdAt),
 ]);
 
 export const listingImages = pgTable("listing_images", {

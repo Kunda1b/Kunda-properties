@@ -16,7 +16,7 @@ import { sanitizeMultiline } from "../lib/sanitize.js";
 const router = Router();
 router.use(authenticate);
 
-const PLATFORM_FEE_PERCENT = 2.5;
+const PLATFORM_FEE_PERCENT = Number(process.env.PLATFORM_FEE_PERCENT ?? "2.5");
 
 function isStripeConfigured(): boolean {
   return !!process.env.STRIPE_SECRET_KEY;

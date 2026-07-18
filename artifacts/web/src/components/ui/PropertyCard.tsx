@@ -53,7 +53,7 @@ export function PropertyCard({ listing, className, isSaved, onToggleSave }: Prop
           <div className="flex items-center gap-4 text-sm text-gray-600 pt-3 border-t border-gray-100">
             {listing.bedrooms != null && <span className="flex items-center gap-1"><BedDouble className="w-4 h-4" />{listing.bedrooms}</span>}
             {listing.bathrooms != null && <span className="flex items-center gap-1"><Bath className="w-4 h-4" />{listing.bathrooms}</span>}
-            {listing.landSizesqm != null && <span className="flex items-center gap-1"><Maximize className="w-4 h-4" />{formatArea(Number(listing.landSizesqm))}</span>}
+            {listing.landSizeSqm != null && <span className="flex items-center gap-1"><Maximize className="w-4 h-4" />{formatArea(Number(listing.landSizeSqm))}</span>}
           </div>
         </div>
       </Link>

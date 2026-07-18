@@ -11,8 +11,8 @@ export const transactionStatusEnum = pgEnum("transaction_status", ["PENDING", "P
 
 export const offers = pgTable("offers", {
   id:             text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  listingId:      text("listing_id").notNull().references(() => listings.id),
-  buyerId:        text("buyer_id").notNull().references(() => users.id),
+  listingId:      text("listing_id").notNull().references(() => listings.id, { onDelete: "cascade" }),
+  buyerId:        text("buyer_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   amount:         numeric("amount", { precision: 15, scale: 2 }).notNull(),
   currency:       listingCurrencyEnum("currency").notNull().default("USD"),
   message:        text("message"),
@@ -24,7 +24,11 @@ export const offers = pgTable("offers", {
   rejectedAt:     timestamp("rejected_at"),
   createdAt:      timestamp("created_at").defaultNow().notNull(),
   updatedAt:      timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => [
+  index("offers_listing_idx").on(t.listingId),
+  index("offers_buyer_idx").on(t.buyerId),
+  index("offers_status_idx").on(t.status),
+]);
 
 export const escrowAccounts = pgTable("escrow_accounts", {
   id:                     text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -63,11 +67,13 @@ export const escrowMilestones = pgTable("escrow_milestones", {
   order:       integer("order").notNull().default(0),
   completedAt: timestamp("completed_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  index("milestone_escrow_idx").on(t.escrowId),
+]);
 
 export const transactions = pgTable("transactions", {
   id:             text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  escrowId:       text("escrow_id").notNull().references(() => escrowAccounts.id),
+  escrowId:       text("escrow_id").notNull().references(() => escrowAccounts.id, { onDelete: "cascade" }),
   type:           transactionTypeEnum("type").notNull(),
   status:         transactionStatusEnum("status").notNull().default("PENDING"),
   amount:         numeric("amount", { precision: 15, scale: 2 }).notNull(),
@@ -75,7 +81,10 @@ export const transactions = pgTable("transactions", {
   stripeChargeId: text("stripe_charge_id"),
   processedAt:    timestamp("processed_at"),
   createdAt:      timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  index("transaction_escrow_idx").on(t.escrowId),
+  index("transaction_status_idx").on(t.status),
+]);
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 export const offersRelations = relations(offers, ({ one }) => ({

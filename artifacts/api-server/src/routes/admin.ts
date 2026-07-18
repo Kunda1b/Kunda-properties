@@ -103,7 +103,7 @@ router.get("/users", async (req, res, next) => {
       .leftJoin(kycRecords, eq(kycRecords.userId, users.id))
       .where(where);
 
-    res.json({ success: true, data: { users: results, total: count, page: pageNum, limit: limitNum } });
+    res.json({ success: true, data: { users: results, total: count, page: pageNum, limit: limitNum, totalPages: Math.ceil(count / limitNum) } });
   } catch (err) { next(err); }
 });
 
@@ -449,6 +449,29 @@ router.get("/audit-logs", async (req, res, next) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXCHANGE RATES
 // ═══════════════════════════════════════════════════════════════════════════════
+router.get("/exchange-rates", async (req, res, next) => {
+  try {
+    const rates = await db.select().from(exchangeRates).orderBy(asc(exchangeRates.fromCurrency));
+    res.json({ success: true, data: rates });
+  } catch (err) { next(err); }
+});
+
+router.patch("/exchange-rates/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rate } = req.body;
+    if (!rate || isNaN(Number(rate)) || Number(rate) <= 0)
+      return next(new AppError("Rate must be a positive number", 400, "INVALID_INPUT"));
+    const [updated] = await db.update(exchangeRates)
+      .set({ rate: String(rate), updatedAt: new Date() })
+      .where(eq(exchangeRates.id, id))
+      .returning();
+    if (!updated) return next(new AppError("Exchange rate not found", 404, "NOT_FOUND"));
+    await writeAudit(req, { userId: (req as any).user.id, action: "UPDATE_EXCHANGE_RATE", resource: "exchange_rates", resourceId: id, newValues: { rate } });
+    res.json({ success: true, data: updated });
+  } catch (err) { next(err); }
+});
+
 router.put("/exchange-rates", async (req, res, next) => {
   try {
     const { from: fromCurrency, to: toCurrency, rate } = req.body;

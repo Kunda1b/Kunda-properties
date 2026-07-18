@@ -15,8 +15,8 @@ export const notificationStatusEnum = pgEnum("notification_status", ["PENDING", 
 
 export const documents = pgTable("documents", {
   id:              text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  listingId:       text("listing_id").references(() => listings.id),
-  uploadedById:    text("uploaded_by_id").references(() => users.id),
+  listingId:       text("listing_id").references(() => listings.id, { onDelete: "set null" }),
+  uploadedById:    text("uploaded_by_id").references(() => users.id, { onDelete: "set null" }),
   type:            documentTypeEnum("type").notNull(),
   status:          documentStatusEnum("status").notNull().default("PENDING"),
   title:           text("title").notNull(),
@@ -30,7 +30,11 @@ export const documents = pgTable("documents", {
   expiresAt:       timestamp("expires_at"),
   createdAt:       timestamp("created_at").defaultNow().notNull(),
   updatedAt:       timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => [
+  index("doc_listing_idx").on(t.listingId),
+  index("doc_uploader_idx").on(t.uploadedById),
+  index("doc_status_idx").on(t.status),
+]);
 
 export const notifications = pgTable("notifications", {
   id:          text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -44,7 +48,11 @@ export const notifications = pgTable("notifications", {
   sentAt:      timestamp("sent_at"),
   readAt:      timestamp("read_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  index("notif_user_idx").on(t.userId),
+  index("notif_status_idx").on(t.status),
+  index("notif_created_idx").on(t.createdAt),
+]);
 
 export const auditLogs = pgTable("audit_logs", {
   id:         text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -99,12 +107,13 @@ export const conversations = pgTable("conversations", {
 export const messages = pgTable("messages", {
   id:             text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   conversationId: text("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
-  senderId:       text("sender_id").notNull().references(() => users.id),
+  senderId:       text("sender_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   body:           text("body").notNull(),
   readAt:         timestamp("read_at"),
   createdAt:      timestamp("created_at").defaultNow().notNull(),
 }, (t) => [
   index("msg_conv_idx").on(t.conversationId),
+  index("msg_sender_idx").on(t.senderId),
 ]);
 
 export const viewingRequests = pgTable("viewing_requests", {

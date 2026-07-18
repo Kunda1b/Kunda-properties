@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { body } from "express-validator";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { db } from "@workspace/db";
 import { users, userProfiles, sessions } from "@workspace/db/schema";
 import { eq, and, isNull, gt } from "drizzle-orm";
@@ -11,6 +12,20 @@ import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
 import { authLimiter } from "../middleware/rateLimiters.js";
 import { sanitizeText } from "../lib/sanitize.js";
+
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_DAYS ?? "7") * 24 * 60 * 60 * 1000;
+
+const RESET_SECRET = (process.env.SESSION_SECRET ?? "dev-kunda-secret-change-me") + "_reset";
+function signResetToken(userId: string): string {
+  return jwt.sign({ sub: userId, type: "password_reset" }, RESET_SECRET, { expiresIn: "15m" });
+}
+function verifyResetToken(token: string): { sub: string } {
+  try {
+    return jwt.verify(token, RESET_SECRET) as { sub: string; type: string };
+  } catch {
+    throw new AppError("Invalid or expired reset token", 400, "TOKEN_INVALID");
+  }
+}
 
 const router = Router();
 
@@ -87,7 +102,7 @@ router.post(
         userId: user.id, refreshToken,
         userAgent: req.headers["user-agent"] || null,
         ipAddress: req.ip || null,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + SESSION_TTL_MS),
       });
 
       const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, user.id)).limit(1);
@@ -121,7 +136,7 @@ router.post("/refresh", async (req, res, next) => {
     await db.insert(sessions).values({
       userId: user.id, refreshToken: tokens.refreshToken,
       userAgent: req.headers["user-agent"] || null, ipAddress: req.ip || null,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
     });
 
     res.json({ success: true, data: tokens });
@@ -233,7 +248,7 @@ router.get("/google/callback", async (req, res, next) => {
       userId: user.id, refreshToken,
       userAgent: req.headers["user-agent"] || null,
       ipAddress: req.ip || null,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
     });
 
     // Redirect to frontend callback page with tokens
@@ -247,8 +262,14 @@ router.post("/forgot-password", authLimiter,
   validate([body("email").isEmail().normalizeEmail()]),
   async (req, res, next) => {
     try {
-      // Stub: in production send an email; just acknowledge here
-      logger.info({ email: req.body.email }, "Password reset requested (email stub)");
+      const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, req.body.email)).limit(1);
+      if (user) {
+        const token = signResetToken(user.id);
+        // In production, email this link to the user. Never log the raw token.
+        logger.info({ userId: user.id }, "Password reset requested — token generated (send via email in prod)");
+        // TODO: replace with real email send, e.g. sendEmail({ to: req.body.email, subject: "Reset your Kunda password", body: `Use this link: /auth/reset-password?token=${token}` })
+        void token; // token is used above; suppress unused-var warning until email is wired
+      }
       res.json({ success: true, message: "If that email exists, a reset link has been sent." });
     } catch (err) { next(err); }
   },
@@ -259,8 +280,13 @@ router.post("/reset-password", authLimiter,
   validate([body("password").isLength({ min: 8 }), body("token").notEmpty()]),
   async (req, res, next) => {
     try {
-      // Stub: requires email/token flow — not wired in this version
-      res.status(400).json({ success: false, error: "Reset via email not yet configured. Contact support." });
+      const { sub: userId } = verifyResetToken(req.body.token);
+      const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
+      if (!user) throw new AppError("User not found", 404, "NOT_FOUND");
+      const passwordHash = await bcrypt.hash(req.body.password, 12);
+      await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, userId));
+      await db.delete(sessions).where(eq(sessions.userId, userId));
+      res.json({ success: true, message: "Password reset successfully." });
     } catch (err) { next(err); }
   },
 );

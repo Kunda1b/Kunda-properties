@@ -89,3 +89,8 @@ export const ratesAdminApi = {
   update: (from: string, to: string, rate: number) =>
     adminApi.put("/exchange-rates", { from, to, rate }),
 };
+
+export const exchangeRatesAdminApi = {
+  getAll: () => adminApi.get("/exchange-rates"),
+  update: (id: string, rate: number) => adminApi.patch(`/exchange-rates/${id}`, { rate }),
+};

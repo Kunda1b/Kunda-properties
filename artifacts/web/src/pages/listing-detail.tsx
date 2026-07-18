@@ -322,7 +322,7 @@ export default function ListingDetailPage({ id }: { id: string }) {
               )}
 
               {/* Map */}
-              {data.latitude && data.longitude && (
+              {data.latitude && data.longitude && !isNaN(Number(data.latitude)) && !isNaN(Number(data.longitude)) && (
                 <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                   <div className="p-4 pb-0">
                     <h3 className="font-display text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
