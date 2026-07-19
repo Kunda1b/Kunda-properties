@@ -400,14 +400,16 @@ router.get("/documents", async (req, res, next) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 router.post("/notifications/broadcast", async (req, res, next) => {
   try {
-    const { title, body, type = "IN_APP", userIds } = req.body;
+    const { title, body, type = "IN_APP", userIds, targetRole } = req.body;
     if (!title || !body) return res.status(400).json({ success: false, error: "title and body are required" });
 
     let targetUsers: { id: string }[] = [];
     if (userIds && Array.isArray(userIds)) {
       targetUsers = userIds.map((id: string) => ({ id }));
     } else {
-      targetUsers = await db.select({ id: users.id }).from(users).where(eq(users.isActive, true));
+      const conditions: any[] = [eq(users.isActive, true)];
+      if (targetRole && targetRole !== "ALL") conditions.push(eq(users.role, targetRole as any));
+      targetUsers = await db.select({ id: users.id }).from(users).where(and(...conditions));
     }
 
     if (targetUsers.length > 0) {

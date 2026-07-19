@@ -37,7 +37,7 @@ router.get("/:id", async (req, res, next) => {
     db.update(listings)
       .set({ viewCount: sql`${listings.viewCount} + 1` })
       .where(eq(listings.id, listing.id))
-      .catch(() => {});
+      .catch((err) => logger.warn({ err, listingId: listing.id }, "view count increment failed"));
     res.json({ success: true, data: listing });
   } catch (err) { next(err); }
 });
@@ -55,16 +55,22 @@ router.get("/my/all", async (req, res, next) => {
     const offset = (pageNum - 1) * limitNum;
 
     const where: any = eq(listings.sellerId, userId);
-    const results = await db.query.listings.findMany({
-      where: (l, { eq: eqFn, and: andFn }) =>
-        status ? andFn(eqFn(l.sellerId, userId), eqFn(l.status, status as any)) : eqFn(l.sellerId, userId),
-      with: { images: true },
-      orderBy: (l, { desc }) => [desc(l.updatedAt)],
-      limit: limitNum,
-      offset,
-    });
+    const whereClause = status
+      ? and(eq(listings.sellerId, userId), eq(listings.status, status as any))
+      : eq(listings.sellerId, userId);
 
-    res.json({ success: true, data: { listings: results, page: pageNum, limit: limitNum } });
+    const [results, [{ total }]] = await Promise.all([
+      db.query.listings.findMany({
+        where: () => whereClause,
+        with: { images: true },
+        orderBy: (l, { desc }) => [desc(l.updatedAt)],
+        limit: limitNum,
+        offset,
+      }),
+      db.select({ total: sql<number>`count(*)::int` }).from(listings).where(whereClause),
+    ]);
+
+    res.json({ success: true, data: { listings: results, total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } });
   } catch (err) { next(err); }
 });
 
@@ -254,6 +260,12 @@ router.post("/:id/images", async (req, res, next) => {
     const { url, thumbnailUrl, caption, isPrimary, order } = req.body;
     if (!url) return res.status(400).json({ success: false, error: "url is required" });
 
+    const [listing] = await db.select({ sellerId: listings.sellerId }).from(listings).where(eq(listings.id, id)).limit(1);
+    if (!listing) return res.status(404).json({ success: false, error: "Listing not found" });
+    const userRole = (req as any).user.role;
+    if (listing.sellerId !== (req as any).user.id && userRole !== "ADMIN" && userRole !== "SUPER_ADMIN")
+      return res.status(403).json({ success: false, error: "Access denied" });
+
     if (isPrimary) {
       await db.update(listingImages).set({ isPrimary: false }).where(eq(listingImages.listingId, id));
     }
@@ -270,6 +282,11 @@ router.post("/:id/images", async (req, res, next) => {
 // ── DELETE /listings/:id/images/:imageId ─────────────────────────────────────
 router.delete("/:id/images/:imageId", async (req, res, next) => {
   try {
+    const [listing] = await db.select({ sellerId: listings.sellerId }).from(listings).where(eq(listings.id, req.params.id)).limit(1);
+    if (!listing) return res.status(404).json({ success: false, error: "Listing not found" });
+    const userRole = (req as any).user.role;
+    if (listing.sellerId !== (req as any).user.id && userRole !== "ADMIN" && userRole !== "SUPER_ADMIN")
+      return res.status(403).json({ success: false, error: "Access denied" });
     await db.delete(listingImages).where(
       and(eq(listingImages.id, req.params.imageId), eq(listingImages.listingId, req.params.id)),
     );

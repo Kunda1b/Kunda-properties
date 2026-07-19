@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -339,16 +339,35 @@ function Step4Images({ listingId, onDone }: { listingId: string; onDone: () => v
   );
 }
 
+const DRAFT_KEY = "kunda-new-listing-draft";
+
 /* ── Main page ───────────────────────────────────────────────────────────────── */
 export default function NewListingPage() {
   const [step, setStep] = useState(0);
-  const [data, setData] = useState<Partial<Step1 & Step2 & Step3>>({});
+  const [data, setData] = useState<Partial<Step1 & Step2 & Step3>>(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const [listingId, setListingId] = useState<string | null>(null);
   const [, navigate] = useLocation();
+
+  // Persist draft whenever data changes (before final submit)
+  useEffect(() => {
+    if (step < 3 && Object.keys(data).length > 0) {
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(data)); } catch {}
+    }
+  }, [data, step]);
+
+  const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} };
 
   const createMutation = useMutation({
     mutationFn: (payload: any) => listingsApi.create(payload),
     onSuccess: (res) => {
+      clearDraft();
       setListingId(res.data.data.id);
       setStep(3);
     },

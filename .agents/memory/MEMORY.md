@@ -1,2 +1,3 @@
 - [Kunda port decisions](kunda-port-decisions.md) — key choices made when porting the Vercel Turborepo to Replit pnpm workspace
 - [Kunda backend decisions](kunda-backend-decisions.md) — consolidated api-server architecture, DB schema, and stub decisions
+- [Kunda audit fixes](kunda-audit-fixes.md) — 26-issue audit: what was fixed, what was already done, and two intentional skips

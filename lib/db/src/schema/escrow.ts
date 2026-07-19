@@ -44,7 +44,7 @@ export const escrowAccounts = pgTable("escrow_accounts", {
   sellerPayoutAmount:     numeric("seller_payout_amount", { precision: 15, scale: 2 }),
   stripePaymentIntentId:  text("stripe_payment_intent_id"),
   stripeTransferId:       text("stripe_transfer_id"),
-  referenceNumber:        text("reference_number"),
+  referenceNumber:        text("reference_number").unique(),
   inspectionDeadline:     timestamp("inspection_deadline"),
   releasedAt:             timestamp("released_at"),
   refundedAt:             timestamp("refunded_at"),
