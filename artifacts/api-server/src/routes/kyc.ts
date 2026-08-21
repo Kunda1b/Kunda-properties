@@ -47,10 +47,17 @@ router.post(
       const idNumber = sanitizeText(req.body.idNumber, 64);
       const idCountry = sanitizeText(req.body.idCountry, 3).toUpperCase();
 
-      const [existing] = await db.select({ status: kycRecords.status }).from(kycRecords)
+      const [existing] = await db.select({
+        status: kycRecords.status,
+        idFrontUrl: kycRecords.idFrontUrl,
+        selfieImageUrl: kycRecords.selfieImageUrl,
+      }).from(kycRecords)
         .where(eq(kycRecords.userId, userId)).limit(1);
       if (existing?.status === "VERIFIED") {
         return res.status(400).json({ success: false, error: "KYC already verified", code: "KYC_ALREADY_VERIFIED" });
+      }
+      if (!existing?.idFrontUrl || !existing.selfieImageUrl) {
+        return res.status(400).json({ success: false, error: "Front ID and selfie must be uploaded first", code: "KYC_DOCUMENTS_REQUIRED" });
       }
 
       // Smile Identity is not configured — mark as SUBMITTED for manual review

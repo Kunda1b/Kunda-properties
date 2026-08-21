@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { body } from "express-validator";
 import { db } from "@workspace/db";
-import { documents } from "@workspace/db/schema";
+import { documents, listings } from "@workspace/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { authenticate } from "../middleware/authenticate.js";
 import { validate } from "../middleware/validate.js";
@@ -56,6 +56,12 @@ router.post(
       const type = req.body.type;
       const title = sanitizeText(req.body.title, 200);
       const listingId = req.body.listingId || null;
+      if (listingId) {
+        const [listing] = await db.select({ sellerId: listings.sellerId })
+          .from(listings).where(eq(listings.id, listingId)).limit(1);
+        if (!listing) throw new AppError("Listing not found", 404, "NOT_FOUND");
+        if (listing.sellerId !== userId) throw new AppError("You may only attach documents to your listings", 403, "FORBIDDEN");
+      }
 
       const validated = validateUpload({
         fileUrl: req.body.fileUrl,

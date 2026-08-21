@@ -14,8 +14,8 @@ interface AuthState {
   refreshToken: string | null;
   isLoading: boolean;
   setUser: (user: User) => void;
-  setTokens: (accessToken: string, refreshToken: string) => void;
-  loginSuccess: (user: User, accessToken: string, refreshToken: string) => void;
+  setTokens: (accessToken: string | null, refreshToken: string | null) => void;
+  loginSuccess: (user: User, accessToken: string | null, refreshToken: string | null) => void;
   logout: () => void;
   setLoading: (isLoading: boolean) => void;
   updateUser: (updates: Partial<User>) => void;
@@ -42,7 +42,8 @@ export const useAuthStore = create<AuthState>()(
       ),
       // accessToken intentionally excluded from localStorage — keep in memory only (XSS safety).
       // The interceptor auto-refreshes using the persisted refreshToken on page reload.
-      partialize: (s) => ({ user: s.user, refreshToken: s.refreshToken }),
+      // Tokens are also held in HttpOnly cookies; never persist bearer tokens in localStorage.
+      partialize: (s) => ({ user: s.user }),
     }
   )
 );

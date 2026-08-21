@@ -1,5 +1,6 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { body } from "express-validator";
+import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { db } from "@workspace/db";
@@ -12,19 +13,48 @@ import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
 import { authLimiter } from "../middleware/rateLimiters.js";
 import { sanitizeText } from "../lib/sanitize.js";
+import { clearAuthCookies, REFRESH_COOKIE, setAuthCookies } from "../lib/authCookies.js";
+import { sendPasswordResetEmail } from "../lib/email.js";
+import { hashRefreshToken } from "../lib/tokenHash.js";
 
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_DAYS ?? "7") * 24 * 60 * 60 * 1000;
 
 const RESET_SECRET = (process.env.SESSION_SECRET ?? "dev-kunda-secret-change-me") + "_reset";
+const OAUTH_STATE_SECRET = (process.env.SESSION_SECRET ?? "dev-kunda-secret-change-me") + "_oauth_state";
+
+function publicUrl(req: Request): string {
+  const configured = process.env.PUBLIC_URL?.replace(/\/+$/, "");
+  if (configured) return configured;
+  if (process.env.NODE_ENV === "production") {
+    throw new AppError("PUBLIC_URL must be configured in production", 500, "OAUTH_NOT_CONFIGURED");
+  }
+  return `${req.protocol}://${req.get("host")}`;
+}
+
+function frontendUrl(req: Request): string {
+  return (process.env.PUBLIC_FRONTEND_URL || publicUrl(req).replace(/\/api$/, "")).replace(/\/+$/, "");
+}
+
 function signResetToken(userId: string): string {
   return jwt.sign({ sub: userId, type: "password_reset" }, RESET_SECRET, { expiresIn: "15m" });
 }
 function verifyResetToken(token: string): { sub: string } {
   try {
-    return jwt.verify(token, RESET_SECRET) as { sub: string; type: string };
+    const payload = jwt.verify(token, RESET_SECRET) as { sub?: string; type?: string };
+    if (!payload.sub || payload.type !== "password_reset") throw new Error("wrong token type");
+    return { sub: payload.sub };
   } catch {
     throw new AppError("Invalid or expired reset token", 400, "TOKEN_INVALID");
   }
+}
+
+function signOAuthState(): string {
+  return jwt.sign({ nonce: randomUUID(), type: "oauth_state" }, OAUTH_STATE_SECRET, { expiresIn: "10m" });
+}
+function verifyOAuthState(state: string, cookieState?: string): void {
+  if (!cookieState || cookieState !== state) throw new AppError("Invalid OAuth state", 400, "OAUTH_STATE_INVALID");
+  const payload = jwt.verify(state, OAUTH_STATE_SECRET) as { type?: string };
+  if (payload.type !== "oauth_state") throw new Error("wrong OAuth state type");
 }
 
 const router = Router();
@@ -98,8 +128,9 @@ router.post(
       if (!valid) throw new AppError("Invalid credentials", 401, "INVALID_CREDENTIALS");
 
       const { accessToken, refreshToken } = generateTokens(user.id, user.role);
+      setAuthCookies(res, accessToken, refreshToken);
       await db.insert(sessions).values({
-        userId: user.id, refreshToken,
+        userId: user.id, refreshToken: hashRefreshToken(refreshToken),
         userAgent: req.headers["user-agent"] || null,
         ipAddress: req.ip || null,
         expiresAt: new Date(Date.now() + SESSION_TTL_MS),
@@ -117,24 +148,26 @@ router.post(
 // ── POST /auth/refresh ────────────────────────────────────────────────────────
 router.post("/refresh", async (req, res, next) => {
   try {
-    const { refreshToken: token } = req.body;
+    const token = req.body?.refreshToken || req.cookies?.[REFRESH_COOKIE];
     if (!token) throw new AppError("Refresh token required", 400, "TOKEN_REQUIRED");
 
     const payload = verifyRefreshToken(token);
 
     const [session] = await db.select().from(sessions)
-      .where(and(eq(sessions.refreshToken, token), isNull(sessions.revokedAt), gt(sessions.expiresAt, new Date())))
+      .where(and(eq(sessions.refreshToken, hashRefreshToken(token)), isNull(sessions.revokedAt), gt(sessions.expiresAt, new Date())))
       .limit(1);
     if (!session) throw new AppError("Invalid or expired refresh token", 401, "TOKEN_INVALID");
 
     const [user] = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
     if (!user || !user.isActive) throw new AppError("User not found or inactive", 401, "USER_INACTIVE");
+    if (user.isSuspended) throw new AppError("Account suspended", 403, "ACCOUNT_SUSPENDED");
 
     // Rotate refresh token
     const tokens = generateTokens(user.id, user.role);
     await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, session.id));
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
     await db.insert(sessions).values({
-      userId: user.id, refreshToken: tokens.refreshToken,
+      userId: user.id, refreshToken: hashRefreshToken(tokens.refreshToken),
       userAgent: req.headers["user-agent"] || null, ipAddress: req.ip || null,
       expiresAt: new Date(Date.now() + SESSION_TTL_MS),
     });
@@ -146,10 +179,11 @@ router.post("/refresh", async (req, res, next) => {
 // ── POST /auth/logout ─────────────────────────────────────────────────────────
 router.post("/logout", authenticate, async (req, res, next) => {
   try {
-    const { refreshToken: token } = req.body;
+    const token = req.body?.refreshToken || req.cookies?.[REFRESH_COOKIE];
     if (token) {
-      await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.refreshToken, token));
+      await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.refreshToken, hashRefreshToken(token)));
     }
+    clearAuthCookies(res);
     res.json({ success: true, message: "Logged out successfully" });
   } catch (err) { next(err); }
 });
@@ -176,14 +210,23 @@ router.get("/google", (req, res) => {
       code: "OAUTH_NOT_CONFIGURED",
     });
   }
-  const baseUrl = process.env.PUBLIC_URL || `https://${req.headers.host}`;
+  const baseUrl = publicUrl(req);
   const redirectUri = `${baseUrl}/api/auth/google/callback`;
+  const state = signOAuthState();
+  res.cookie("kunda_oauth_state", state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 10 * 60 * 1000,
+    path: "/api/auth/google",
+  });
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
     scope: "openid email profile",
     access_type: "offline",
+    state,
   });
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
@@ -194,12 +237,19 @@ router.get("/google/callback", async (req, res, next) => {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
     if (!clientId || !clientSecret) {
-      return res.redirect("/auth/login?error=oauth_not_configured");
+      return res.redirect(`${frontendUrl(req)}/auth/login?error=oauth_not_configured`);
     }
-    const { code } = req.query;
-    if (!code) return res.redirect("/auth/login?error=oauth_cancelled");
+    const { code, state } = req.query;
+    if (!code || typeof state !== "string") return res.redirect(`${frontendUrl(req)}/auth/login?error=oauth_cancelled`);
+    try {
+      verifyOAuthState(state, req.cookies?.kunda_oauth_state);
+    } catch {
+      res.clearCookie("kunda_oauth_state", { path: "/api/auth/google" });
+      return res.redirect(`${frontendUrl(req)}/auth/login?error=oauth_state`);
+    }
+    res.clearCookie("kunda_oauth_state", { path: "/api/auth/google" });
 
-    const baseUrl = process.env.PUBLIC_URL || `https://${req.headers.host}`;
+    const baseUrl = publicUrl(req);
     const redirectUri = `${baseUrl}/api/auth/google/callback`;
 
     // Exchange code for tokens
@@ -217,7 +267,7 @@ router.get("/google/callback", async (req, res, next) => {
     const tokenData = await tokenRes.json() as any;
     if (tokenData.error) {
       logger.error({ error: tokenData.error }, "Google OAuth token exchange failed");
-      return res.redirect("/auth/login?error=oauth_failed");
+      return res.redirect(`${frontendUrl(req)}/auth/login?error=oauth_failed`);
     }
 
     // Get user info from Google
@@ -225,9 +275,15 @@ router.get("/google/callback", async (req, res, next) => {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
     const googleUser = await userInfoRes.json() as any;
+    if (!userInfoRes.ok || !googleUser.email || googleUser.email_verified !== true) {
+      return res.redirect(`${frontendUrl(req)}/auth/login?error=oauth_failed`);
+    }
 
     // Find or create user
     let [user] = await db.select().from(users).where(eq(users.email, googleUser.email.toLowerCase())).limit(1);
+    if (user && (!user.isActive || user.isSuspended)) {
+      return res.redirect(`${frontendUrl(req)}/auth/login?error=account_unavailable`);
+    }
     if (!user) {
       [user] = await db.insert(users).values({
         email: googleUser.email.toLowerCase(),
@@ -244,16 +300,17 @@ router.get("/google/callback", async (req, res, next) => {
     }
 
     const { accessToken, refreshToken } = generateTokens(user.id, user.role);
+    setAuthCookies(res, accessToken, refreshToken);
     await db.insert(sessions).values({
-      userId: user.id, refreshToken,
+      userId: user.id, refreshToken: hashRefreshToken(refreshToken),
       userAgent: req.headers["user-agent"] || null,
       ipAddress: req.ip || null,
       expiresAt: new Date(Date.now() + SESSION_TTL_MS),
     });
 
-    // Redirect to frontend callback page with tokens
-    const frontendBase = baseUrl.replace(/\/api$/, "");
-    res.redirect(`${frontendBase}/auth/callback?access=${encodeURIComponent(accessToken)}&refresh=${encodeURIComponent(refreshToken)}`);
+    // Tokens stay in HttpOnly cookies; never put bearer credentials in a URL.
+    const frontendBase = frontendUrl(req);
+    res.redirect(`${frontendBase}/auth/callback`);
   } catch (err) { next(err); }
 });
 
@@ -265,10 +322,8 @@ router.post("/forgot-password", authLimiter,
       const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, req.body.email)).limit(1);
       if (user) {
         const token = signResetToken(user.id);
-        // In production, email this link to the user. Never log the raw token.
-        logger.info({ userId: user.id }, "Password reset requested — token generated (send via email in prod)");
-        // TODO: replace with real email send, e.g. sendEmail({ to: req.body.email, subject: "Reset your Kunda password", body: `Use this link: /auth/reset-password?token=${token}` })
-        void token; // token is used above; suppress unused-var warning until email is wired
+        // Keep the response identical for existing and unknown addresses.
+        await sendPasswordResetEmail(req.body.email, token);
       }
       res.json({ success: true, message: "If that email exists, a reset link has been sent." });
     } catch (err) { next(err); }

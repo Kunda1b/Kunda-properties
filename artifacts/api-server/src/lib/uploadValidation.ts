@@ -83,6 +83,13 @@ export function validateUpload(input: UploadValidationInput): UploadValidationRe
     );
   }
 
+  const allowedHosts = (process.env.UPLOAD_ALLOWED_HOSTS || "")
+    .split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
+  const hostname = new URL(fileUrl).hostname.toLowerCase();
+  if (process.env.NODE_ENV === "production" && (allowedHosts.length === 0 || !allowedHosts.includes(hostname))) {
+    throw new AppError("File host is not approved", 400, "INVALID_FILE_HOST");
+  }
+
   let mimeType = normalizeMime(input.mimeType);
   if (!mimeType) {
     const ext = extensionOf(fileUrl);

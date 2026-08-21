@@ -82,7 +82,7 @@ router.post(
     body("title").trim().isLength({ min: 10, max: 200 }),
     body("description").trim().isLength({ min: 20, max: 20000 }),
     body("propertyType").isIn(["HOUSE", "APARTMENT", "LAND", "COMMERCIAL", "VILLA", "COMPOUND"]),
-    body("price").isNumeric(),
+    body("price").isNumeric().isFloat({ gt: 0 }),
     body("currency").isIn(["GMD", "USD", "GBP", "EUR"]),
     body("address").trim().notEmpty().isLength({ max: 300 }),
     body("region").trim().notEmpty().isLength({ max: 100 }),
@@ -100,6 +100,16 @@ router.post(
         hasSecurity, titleDeedAvailable, titleDeedNumber, isNegotiable, isInstallment,
         installmentYears, diasporaHighlights, virtualTourUrl } = req.body;
 
+      let priceUsd: string | null = currency === "USD" ? String(price) : null;
+      if (currency !== "USD") {
+        const [rateRow] = await db.select({ rate: exchangeRates.rate })
+          .from(exchangeRates)
+          .where(and(eq(exchangeRates.fromCurrency, currency), eq(exchangeRates.toCurrency, "USD")))
+          .limit(1);
+        if (!rateRow) throw new AppError("Exchange rate unavailable for this currency", 503, "EXCHANGE_RATE_UNAVAILABLE");
+        priceUsd = String(Number(price) * Number(rateRow.rate));
+      }
+
       // Generate unique slug
       let slug = slugify(`${title} ${region}`, { lower: true, strict: true });
       let attempt = 0;
@@ -111,7 +121,7 @@ router.post(
 
       const [listing] = await db.insert(listings).values({
         sellerId, title, slug, description, propertyType, status: "DRAFT",
-        price: String(price), currency, priceUsd: currency === "USD" ? String(price) : null,
+        price: String(price), currency, priceUsd,
         address, region, area: area || null, latitude: latitude ? String(latitude) : null,
         longitude: longitude ? String(longitude) : null,
         bedrooms: bedrooms ? Number(bedrooms) : null,

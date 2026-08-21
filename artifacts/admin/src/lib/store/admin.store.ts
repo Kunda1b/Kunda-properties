@@ -9,7 +9,7 @@ interface AdminUser {
 interface AdminState {
   user: AdminUser | null;
   accessToken: string | null;
-  loginSuccess: (user: AdminUser, accessToken: string) => void;
+  loginSuccess: (user: AdminUser, accessToken: string | null) => void;
   logout: () => void;
 }
 
@@ -26,7 +26,8 @@ export const useAdminStore = create<AdminState>()(
       storage: createJSONStorage(() =>
         typeof window !== "undefined" ? localStorage : { getItem: () => null, setItem: () => {}, removeItem: () => {} }
       ),
-      partialize: (s) => ({ user: s.user, accessToken: s.accessToken }),
+      // Authentication is maintained by HttpOnly cookies; do not persist bearer tokens.
+      partialize: (s) => ({ user: s.user }),
     }
   )
 );

@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Menu, X, Bell, Building2, DollarSign, Shield, Handshake, FileText, User } from "lucide-react";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { useQuery } from "@tanstack/react-query";
-import { notificationsApi } from "@/lib/api";
+import { authApi, notificationsApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export function Navbar() {
@@ -21,7 +21,7 @@ export function Navbar() {
 
   const unreadCount: number = notifData?.unreadCount ?? 0;
 
-  const handleLogout = () => { logout(); navigate("/"); };
+  const handleLogout = () => { void authApi.logout().catch(() => {}).finally(() => { logout(); navigate("/"); }); };
   const close = () => setOpen(false);
 
   const dashboardLinks = [

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useAdminStore } from "@/lib/store/admin.store";
+import { authApi } from "@/lib/api";
 
 const DEFAULT_IDLE_MS = 20 * 60 * 1000; // 20 minutes for admin
 
@@ -9,15 +10,16 @@ const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scr
 export function useIdleTimeout(idleMs = DEFAULT_IDLE_MS) {
   const logout = useAdminStore((s) => s.logout);
   const accessToken = useAdminStore((s) => s.accessToken);
+  const user = useAdminStore((s) => s.user);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!accessToken || typeof window === "undefined") return;
+    if ((!accessToken && !user) || typeof window === "undefined") return;
 
     const reset = () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
-        logout();
+        void authApi.logout().catch(() => {}).finally(logout);
         window.location.href = `${import.meta.env.BASE_URL}login?reason=idle`;
       }, idleMs);
     };
@@ -33,5 +35,5 @@ export function useIdleTimeout(idleMs = DEFAULT_IDLE_MS) {
         window.removeEventListener(ev, reset);
       }
     };
-  }, [accessToken, idleMs, logout]);
+  }, [accessToken, user, idleMs, logout]);
 }

@@ -7,6 +7,7 @@ export const adminApi = axios.create({
   baseURL: `${BASE_URL}/api/admin`,
   timeout: 30000,
   headers: { "Content-Type": "application/json" },
+  withCredentials: true,
 });
 
 adminApi.interceptors.request.use((config) => {
@@ -28,8 +29,9 @@ adminApi.interceptors.response.use(
 
 // Auth — uses regular API for login (admin auth is role-based)
 export const authApi = {
-  login: (d: any) => axios.post(`${BASE_URL}/api/auth/login`, d),
-  getMe: () => axios.get(`${BASE_URL}/api/auth/me`),
+  login: (d: any) => axios.post(`${BASE_URL}/api/auth/login`, d, { withCredentials: true }),
+  getMe: () => axios.get(`${BASE_URL}/api/auth/me`, { withCredentials: true }),
+  logout: () => axios.post(`${BASE_URL}/api/auth/logout`, {}, { withCredentials: true }),
 };
 
 // Users

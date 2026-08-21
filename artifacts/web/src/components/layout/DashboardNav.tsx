@@ -3,7 +3,7 @@ import { Home, Building2, DollarSign, Shield, User, LogOut, Handshake, Bell, Fil
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { useQuery } from "@tanstack/react-query";
-import { notificationsApi, messagesApi } from "@/lib/api";
+import { authApi, notificationsApi, messagesApi } from "@/lib/api";
 
 const BASE_LINKS = [
   { href: "/dashboard", icon: Home, label: "Overview", exact: true },
@@ -80,7 +80,7 @@ export function DashboardNav() {
             <p className="text-xs text-gray-400 capitalize">{user?.role?.toLowerCase()}</p>
           </div>
         </div>
-        <button onClick={logout} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 w-full">
+        <button onClick={() => { void authApi.logout().catch(() => {}).finally(logout); }} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 w-full">
           <LogOut className="w-4 h-4" /> Sign Out
         </button>
       </div>

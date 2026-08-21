@@ -11,12 +11,15 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import bcrypt from "bcryptjs";
 import * as schema from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const { Pool } = pg;
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL must be set");
+}
+if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEMO_SEED !== "true") {
+  throw new Error("Demo seed is disabled in production. Set ALLOW_DEMO_SEED=true only for an intentional isolated test database.");
 }
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -98,7 +101,10 @@ async function main() {
 
   for (const r of rateRows) {
     const exists = await db.select().from(schema.exchangeRates)
-      .where(eq(schema.exchangeRates.fromCurrency, r.fromCurrency)).limit(1);
+      .where(and(
+        eq(schema.exchangeRates.fromCurrency, r.fromCurrency),
+        eq(schema.exchangeRates.toCurrency, r.toCurrency),
+      )).limit(1);
     if (!exists.length) {
       await db.insert(schema.exchangeRates).values({ ...r, source: "seed" });
     }

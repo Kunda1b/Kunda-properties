@@ -4,7 +4,7 @@ import { users } from "./users";
 import { listingCurrencyEnum } from "./users";
 
 export const propertyTypeEnum = pgEnum("property_type", ["HOUSE", "APARTMENT", "LAND", "COMMERCIAL", "VILLA", "COMPOUND"]);
-export const propertyStatusEnum = pgEnum("property_status", ["DRAFT", "PENDING_REVIEW", "ACTIVE", "UNDER_OFFER", "SOLD", "WITHDRAWN", "SUSPENDED"]);
+export const propertyStatusEnum = pgEnum("property_status", ["DRAFT", "PENDING_REVIEW", "ACTIVE", "UNDER_OFFER", "SOLD", "WITHDRAWN", "SUSPENDED", "REJECTED"]);
 
 export const listings = pgTable("listings", {
   id:                  text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),

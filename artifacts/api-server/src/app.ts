@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
@@ -13,6 +14,7 @@ const app: Express = express();
 
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
+app.use(cookieParser());
 
 app.use(securityHeaders);
 app.use(globalLimiter);
@@ -43,7 +45,9 @@ app.use(cors({
         if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
         return cb(new Error("Not allowed by CORS"));
       }
-    : true, // dev default: reflect request origin
+    : process.env.NODE_ENV === "production"
+      ? false
+      : true, // development-only reflection; production must configure CORS_ORIGINS
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],

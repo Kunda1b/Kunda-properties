@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, text, numeric, integer, boolean, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, text, numeric, integer, boolean, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 import { listings } from "./listings";
@@ -56,6 +56,7 @@ export const escrowAccounts = pgTable("escrow_accounts", {
   index("escrow_buyer_idx").on(t.buyerId),
   index("escrow_seller_idx").on(t.sellerId),
   index("escrow_listing_idx").on(t.listingId),
+  uniqueIndex("escrow_stripe_pi_idx").on(t.stripePaymentIntentId),
 ]);
 
 export const escrowMilestones = pgTable("escrow_milestones", {
@@ -84,6 +85,7 @@ export const transactions = pgTable("transactions", {
 }, (t) => [
   index("transaction_escrow_idx").on(t.escrowId),
   index("transaction_status_idx").on(t.status),
+  uniqueIndex("transaction_stripe_charge_idx").on(t.stripeChargeId),
 ]);
 
 // ─── Relations ───────────────────────────────────────────────────────────────

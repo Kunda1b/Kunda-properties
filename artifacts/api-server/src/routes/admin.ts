@@ -11,6 +11,7 @@ import { logger } from "../lib/logger.js";
 import { adminLimiter } from "../middleware/rateLimiters.js";
 import { writeAudit } from "../lib/audit.js";
 import { sanitizeMultiline } from "../lib/sanitize.js";
+import { getStripe } from "../lib/stripe.js";
 
 const router = Router();
 // Fresh DB role check so demoted/suspended admins lose access immediately
@@ -109,19 +110,25 @@ router.get("/users", async (req, res, next) => {
 
 router.patch("/users/:id/suspend", async (req, res, next) => {
   try {
-    const { suspend = true } = req.body;
-    // Prevent self-lockout and demoting via suspend of super admins by non-super
+    const rawSuspend = req.body?.suspend ?? true;
+    const suspend = rawSuspend === true || rawSuspend === "true";
+    // Only a super-admin may suspend or restore an elevated account.
     if (req.params.id === req.user!.id) {
       throw new AppError("Cannot suspend your own account", 400, "SELF_SUSPEND");
     }
+    const [target] = await db.select({ role: users.role }).from(users).where(eq(users.id, req.params.id)).limit(1);
+    if (!target) throw new AppError("User not found", 404, "NOT_FOUND");
+    if (["ADMIN", "SUPER_ADMIN"].includes(target.role) && req.user!.role !== "SUPER_ADMIN") {
+      throw new AppError("Only a super-admin can manage admin accounts", 403, "FORBIDDEN");
+    }
     const [user] = await db.update(users)
-      .set({ isSuspended: Boolean(suspend), updatedAt: new Date() })
+      .set({ isSuspended: suspend, updatedAt: new Date() })
       .where(eq(users.id, req.params.id)).returning();
     await writeAudit(req, {
       action: suspend ? "SUSPEND" : "UNSUSPEND",
       resource: "user",
       resourceId: req.params.id,
-      newValues: { isSuspended: Boolean(suspend) },
+      newValues: { isSuspended: suspend },
     });
     res.json({ success: true, data: user });
   } catch (err) { next(err); }
@@ -142,6 +149,7 @@ router.get("/kyc", async (req, res, next) => {
     const results = await db.select({
       id: kycRecords.id, userId: kycRecords.userId, status: kycRecords.status,
       idType: kycRecords.idType, idNumber: kycRecords.idNumber, idCountry: kycRecords.idCountry,
+      idFrontUrl: kycRecords.idFrontUrl, idBackUrl: kycRecords.idBackUrl, selfieImageUrl: kycRecords.selfieImageUrl,
       verifiedAt: kycRecords.verifiedAt, rejectionReason: kycRecords.rejectionReason,
       createdAt: kycRecords.createdAt, updatedAt: kycRecords.updatedAt,
       userEmail: users.email, firstName: userProfiles.firstName, lastName: userProfiles.lastName,
@@ -324,11 +332,27 @@ router.patch("/escrow/:id/force-release", async (req, res, next) => {
 
     const [escrow] = await db.select().from(escrowAccounts).where(eq(escrowAccounts.id, req.params.id)).limit(1);
     if (!escrow) throw new AppError("Not found", 404, "NOT_FOUND");
-    const previousStatus = escrow.status;
+    if (!["APPROVED", "DISPUTED", "FUNDED"].includes(escrow.status))
+      throw new AppError("Escrow cannot be released from its current state", 409, "INVALID_STATE");
+    if (!escrow.stripePaymentIntentId || !process.env.STRIPE_SECRET_KEY)
+      throw new AppError("A verified Stripe payment is required before release", 409, "PAYMENT_NOT_VERIFIED");
 
-    await db.update(escrowAccounts)
+    const [seller] = await db.select({ stripeAccountId: users.stripeAccountId }).from(users).where(eq(users.id, escrow.sellerId)).limit(1);
+    if (!seller?.stripeAccountId)
+      throw new AppError("Seller payout account is not configured", 409, "PAYOUT_NOT_CONFIGURED");
+
+    const stripe = getStripe();
+    const paymentIntent = await stripe.paymentIntents.retrieve(escrow.stripePaymentIntentId);
+    if (paymentIntent.status === "requires_capture") await stripe.paymentIntents.capture(paymentIntent.id);
+    else if (paymentIntent.status !== "succeeded")
+      throw new AppError("Stripe payment is not ready for release", 409, "PAYMENT_NOT_READY");
+
+    const previousStatus = escrow.status;
+    const [released] = await db.update(escrowAccounts)
       .set({ status: "RELEASED", releasedAt: new Date(), adminNotes: notes, updatedAt: new Date() })
-      .where(eq(escrowAccounts.id, req.params.id));
+      .where(and(eq(escrowAccounts.id, req.params.id), inArray(escrowAccounts.status, ["APPROVED", "DISPUTED", "FUNDED"])))
+      .returning({ id: escrowAccounts.id });
+    if (!released) throw new AppError("Escrow state changed; please retry", 409, "INVALID_STATE");
     await db.update(listings).set({ status: "SOLD", updatedAt: new Date() }).where(eq(listings.id, escrow.listingId));
     await db.insert(transactions).values({
       escrowId: req.params.id, type: "RELEASE", status: "COMPLETED",
@@ -352,11 +376,23 @@ router.patch("/escrow/:id/force-refund", async (req, res, next) => {
 
     const [escrow] = await db.select().from(escrowAccounts).where(eq(escrowAccounts.id, req.params.id)).limit(1);
     if (!escrow) throw new AppError("Not found", 404, "NOT_FOUND");
-    const previousStatus = escrow.status;
+    if (!["INITIATED", "FUNDED", "INSPECTING", "APPROVED", "DISPUTED"].includes(escrow.status))
+      throw new AppError("Escrow cannot be refunded from its current state", 409, "INVALID_STATE");
+    if (!escrow.stripePaymentIntentId || !process.env.STRIPE_SECRET_KEY)
+      throw new AppError("A verified Stripe payment is required before refund", 409, "PAYMENT_NOT_VERIFIED");
 
-    await db.update(escrowAccounts)
+    const stripe = getStripe();
+    const paymentIntent = await stripe.paymentIntents.retrieve(escrow.stripePaymentIntentId);
+    if (["requires_capture", "requires_action", "requires_payment_method", "requires_confirmation"].includes(paymentIntent.status)) await stripe.paymentIntents.cancel(paymentIntent.id);
+    else if (paymentIntent.status === "succeeded") await stripe.refunds.create({ payment_intent: paymentIntent.id });
+    else if (paymentIntent.status !== "canceled") throw new AppError("Stripe payment is not refundable", 409, "PAYMENT_NOT_REFUNDABLE");
+
+    const previousStatus = escrow.status;
+    const [refunded] = await db.update(escrowAccounts)
       .set({ status: "REFUNDED", refundedAt: new Date(), adminNotes: notes, updatedAt: new Date() })
-      .where(eq(escrowAccounts.id, req.params.id));
+      .where(and(eq(escrowAccounts.id, req.params.id), inArray(escrowAccounts.status, ["INITIATED", "FUNDED", "INSPECTING", "APPROVED", "DISPUTED"])))
+      .returning({ id: escrowAccounts.id });
+    if (!refunded) throw new AppError("Escrow state changed; please retry", 409, "INVALID_STATE");
     await db.insert(transactions).values({
       escrowId: req.params.id, type: "REFUND", status: "COMPLETED",
       amount: escrow.totalAmount, currency: escrow.currency, processedAt: new Date(),

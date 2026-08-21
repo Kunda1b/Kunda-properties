@@ -5,34 +5,22 @@ import toast from "react-hot-toast";
 import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store/auth.store";
 
-/** Handles the redirect from Google OAuth — reads tokens from URL params, fetches user, stores session. */
+/** Completes Google OAuth using the HttpOnly auth cookies set by the API. */
 export default function AuthCallbackPage() {
   const [, navigate] = useLocation();
   const loginSuccess = useAuthStore((s) => s.loginSuccess);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const accessToken = params.get("access");
-    const refreshToken = params.get("refresh");
-    const error = params.get("error");
-
+    const error = new URLSearchParams(window.location.search).get("error");
     if (error) {
       toast.error("Sign-in failed. Please try again.");
       navigate("/auth/login");
       return;
     }
 
-    if (!accessToken || !refreshToken) {
-      navigate("/auth/login");
-      return;
-    }
-
-    // Store tokens temporarily so the api interceptor can use them
-    useAuthStore.getState().setTokens(accessToken, refreshToken);
-
     authApi.getMe()
       .then((res) => {
-        loginSuccess(res.data.data, accessToken, refreshToken);
+        loginSuccess(res.data.data, null, null);
         toast.success("Welcome to Kunda!");
         navigate("/dashboard");
       })
@@ -41,7 +29,7 @@ export default function AuthCallbackPage() {
         useAuthStore.getState().logout();
         navigate("/auth/login");
       });
-  }, []); // eslint-disable-line
+  }, [loginSuccess, navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-kunda-950 to-kunda-700 flex items-center justify-center">

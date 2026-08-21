@@ -2,7 +2,7 @@ import { Router } from "express";
 import { body } from "express-validator";
 import { db } from "@workspace/db";
 import { offers, listings, kycRecords } from "@workspace/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { authenticate } from "../middleware/authenticate.js";
 import { validate } from "../middleware/validate.js";
 import { AppError } from "../lib/errors.js";
@@ -73,7 +73,7 @@ router.post(
   offersLimiter,
   validate([
     body("listingId").notEmpty().isLength({ max: 64 }),
-    body("amount").isNumeric().isFloat({ min: 0 }),
+    body("amount").isNumeric().isFloat({ gt: 0 }),
     body("currency").isIn(["GMD", "USD", "GBP", "EUR"]),
     body("message").optional().isString().isLength({ max: 2000 }),
   ]),
@@ -144,6 +144,7 @@ router.patch("/:offerId/respond", offersLimiter, async (req, res, next) => {
     if (!offer) throw new AppError("Offer not found", 404, "NOT_FOUND");
     if (offer.listing.sellerId !== userId) throw new AppError("Only the seller can respond", 403, "FORBIDDEN");
     if (offer.status !== "PENDING") throw new AppError("Offer is no longer pending", 400, "INVALID_STATE");
+    if (offer.expiresAt <= new Date()) throw new AppError("Offer has expired", 400, "OFFER_EXPIRED");
 
     const now = new Date();
     let updateData: any = {};
@@ -179,7 +180,11 @@ router.patch("/:offerId/respond", offersLimiter, async (req, res, next) => {
       throw new AppError("Invalid action. Use: accept, reject, counter", 400, "INVALID_ACTION");
     }
 
-    const [updated] = await db.update(offers).set(updateData).where(eq(offers.id, offerId)).returning();
+    const [updated] = await db.update(offers)
+      .set(updateData)
+      .where(and(eq(offers.id, offerId), eq(offers.status, "PENDING")))
+      .returning();
+    if (!updated) throw new AppError("Offer was already updated", 409, "INVALID_STATE");
 
     if (notifTitle) {
       await notify(offer.buyerId, notifTitle, notifBody, { offerId: offer.id, listingId: offer.listingId });

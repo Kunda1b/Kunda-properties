@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAdminStore } from "@/lib/store/admin.store";
+import { authApi } from "@/lib/api";
 
 const links = [
   { href: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -61,7 +62,7 @@ export function AdminSidebar() {
           </div>
         </div>
         <button
-          onClick={logout}
+          onClick={() => { void authApi.logout().catch(() => {}).finally(logout); }}
           className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-red-400 hover:bg-white/5 w-full"
         >
           <LogOut className="w-4 h-4" /> Sign Out

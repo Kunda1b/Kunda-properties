@@ -10,10 +10,11 @@ const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scr
 export function useIdleTimeout(idleMs = DEFAULT_IDLE_MS) {
   const logout = useAuthStore((s) => s.logout);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const user = useAuthStore((s) => s.user);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!accessToken || typeof window === "undefined") return;
+    if ((!accessToken && !user) || typeof window === "undefined") return;
 
     const reset = () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -34,5 +35,5 @@ export function useIdleTimeout(idleMs = DEFAULT_IDLE_MS) {
         window.removeEventListener(ev, reset);
       }
     };
-  }, [accessToken, idleMs, logout]);
+  }, [accessToken, user, idleMs, logout]);
 }

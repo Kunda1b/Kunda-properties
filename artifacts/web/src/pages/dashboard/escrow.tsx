@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DollarSign, AlertTriangle, CheckCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { escrowApi } from "@/lib/api";
@@ -6,6 +6,12 @@ import { formatPrice } from "@/lib/utils";
 import { useAuthStore } from "@/lib/store/auth.store";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
+
+declare global {
+  interface Window {
+    Stripe?: (key: string) => any;
+  }
+}
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   INITIATED:  { label: "Initiated",         color: "bg-blue-100 text-blue-700" },
@@ -25,15 +31,58 @@ function EscrowCard({ escrow }: { escrow: any }) {
   const [disputeReason, setDisputeReason] = useState("");
   const [disputeCategory, setDisputeCategory] = useState("");
   const [showDisputeForm, setShowDisputeForm] = useState(false);
+  const [paymentSecret, setPaymentSecret] = useState<string | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const cardMountRef = useRef<HTMLDivElement>(null);
+  const cardElementRef = useRef<any>(null);
 
   const isBuyer = user?.id === escrow.buyerId;
   const status = STATUS_LABELS[escrow.status] || { label: escrow.status, color: "bg-gray-100 text-gray-600" };
 
   const fundMutation = useMutation({
     mutationFn: () => escrowApi.createPayment(escrow.id),
-    onSuccess: () => { toast.success("Escrow funded! 14-day inspection period started."); qc.invalidateQueries({ queryKey: ["my-escrows"] }); },
+    onSuccess: (res) => setPaymentSecret(res.data.data.clientSecret),
     onError: (e: any) => toast.error(e?.response?.data?.error || "Payment failed"),
   });
+
+  useEffect(() => {
+    if (!paymentSecret || !cardMountRef.current) return;
+    let cancelled = false;
+    const mount = () => {
+      if (cancelled || !window.Stripe || !cardMountRef.current) return;
+      const stripe = window.Stripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
+      if (!stripe) return;
+      const elements = stripe.elements();
+      const card = elements.create("card");
+      card.mount(cardMountRef.current);
+      cardElementRef.current = { stripe, elements, card };
+    };
+    if (window.Stripe) mount();
+    else {
+      const script = document.createElement("script");
+      script.src = "https://js.stripe.com/v3/";
+      script.onload = mount;
+      script.onerror = () => toast.error("Unable to load payment form");
+      document.head.appendChild(script);
+    }
+    return () => {
+      cancelled = true;
+      cardElementRef.current?.card?.destroy();
+      cardElementRef.current = null;
+    };
+  }, [paymentSecret]);
+
+  const confirmPayment = async () => {
+    const current = cardElementRef.current;
+    if (!paymentSecret || !current) return;
+    setPaymentLoading(true);
+    const result = await current.stripe.confirmCardPayment(paymentSecret, { payment_method: { card: current.card } });
+    setPaymentLoading(false);
+    if (result.error) return toast.error(result.error.message || "Payment failed");
+    setPaymentSecret(null);
+    toast.success("Payment authorized. Your 14-day inspection period has started.");
+    qc.invalidateQueries({ queryKey: ["my-escrows"] });
+  };
 
   const approveMutation = useMutation({
     mutationFn: () => escrowApi.approve(escrow.id),
@@ -129,7 +178,10 @@ function EscrowCard({ escrow }: { escrow: any }) {
           {isBuyer && (
             <div className="flex flex-wrap gap-2">
               {escrow.status === "INITIATED" && (
-                <button onClick={() => fundMutation.mutate()} disabled={fundMutation.isPending}
+                <button onClick={() => {
+                  if (!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY) return toast.error("Payments are not configured on this site.");
+                  fundMutation.mutate();
+                }} disabled={fundMutation.isPending}
                   className="btn-primary text-sm py-2 px-4 flex items-center gap-2">
                   {fundMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />} Fund Escrow
                 </button>
@@ -155,6 +207,19 @@ function EscrowCard({ escrow }: { escrow: any }) {
               className="text-sm border border-red-200 text-red-600 rounded-lg py-2 px-4 hover:bg-red-50">
               Raise Dispute
             </button>
+          )}
+
+          {paymentSecret && (
+            <div className="bg-blue-50 rounded-lg p-4 space-y-3">
+              <p className="text-sm font-medium text-blue-900">Secure payment</p>
+              <div ref={cardMountRef} className="bg-white rounded-lg border border-blue-200 p-3" />
+              <div className="flex gap-2">
+                <button onClick={() => void confirmPayment()} disabled={paymentLoading} className="btn-primary text-sm py-2 px-4">
+                  {paymentLoading ? "Processing…" : "Confirm payment"}
+                </button>
+                <button onClick={() => setPaymentSecret(null)} disabled={paymentLoading} className="btn-outline text-sm py-2 px-4">Cancel</button>
+              </div>
+            </div>
           )}
 
           {showDisputeForm && (

@@ -17,6 +17,7 @@ import TermsPage from "@/pages/terms";
 import LoginPage from "@/pages/auth/login";
 import RegisterPage from "@/pages/auth/register";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
+import ResetPasswordPage from "@/pages/auth/reset-password";
 import AuthCallbackPage from "@/pages/auth/callback";
 import { AgentsListPage, AgentProfilePage } from "@/pages/agents";
 import NotFound from "@/pages/not-found";
@@ -74,6 +75,7 @@ function Router() {
       <Route path="/auth/login" component={LoginPage} />
       <Route path="/auth/register" component={RegisterPage} />
       <Route path="/auth/forgot-password" component={ForgotPasswordPage} />
+      <Route path="/auth/reset-password" component={ResetPasswordPage} />
       <Route path="/auth/callback" component={AuthCallbackPage} />
 
       {/* Dashboard */}

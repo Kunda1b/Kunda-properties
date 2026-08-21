@@ -1,7 +1,7 @@
 import express, { Router } from "express";
 import { db } from "@workspace/db";
 import { escrowAccounts, transactions } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getStripe } from "../lib/stripe.js";
 
@@ -18,8 +18,8 @@ router.post("/", async (req, res) => {
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    logger.warn("STRIPE_WEBHOOK_SECRET not set — skipping webhook verification");
-    return res.status(200).json({ received: true });
+    logger.error("STRIPE_WEBHOOK_SECRET is not configured");
+    return res.status(503).json({ error: "Webhook is not configured" });
   }
 
   let event: any;
@@ -33,6 +33,7 @@ router.post("/", async (req, res) => {
 
   try {
     switch (event.type) {
+      case "payment_intent.amount_capturable_updated":
       case "payment_intent.succeeded": {
         const pi = event.data.object;
         const escrowId = pi.metadata?.escrowId;
@@ -47,11 +48,22 @@ router.post("/", async (req, res) => {
           break;
         }
 
-        // Mark escrow as FUNDED only on successful payment confirmation
-        await db.update(escrowAccounts)
-          .set({ status: "FUNDED", updatedAt: new Date() })
-          .where(eq(escrowAccounts.id, escrowId));
+        // Metadata alone is not sufficient: reject events for another intent.
+        if (escrow.stripePaymentIntentId !== pi.id) {
+          logger.warn({ escrowId, paymentIntent: pi.id }, "Webhook PaymentIntent does not match escrow");
+          break;
+        }
+        if (!["INITIATED", "FUNDED", "INSPECTING", "APPROVED"].includes(escrow.status)) break;
 
+        if (event.type === "payment_intent.amount_capturable_updated") {
+          await db.update(escrowAccounts)
+            .set({ status: "FUNDED", updatedAt: new Date() })
+            .where(and(eq(escrowAccounts.id, escrowId), eq(escrowAccounts.status, "INITIATED")));
+          logger.info({ escrowId, paymentIntent: pi.id }, "Escrow payment authorized");
+          break;
+        }
+
+        // Stripe retries webhooks. The unique charge/intent key makes processing idempotent.
         await db.insert(transactions).values({
           escrowId,
           type: "DEPOSIT",
@@ -60,9 +72,14 @@ router.post("/", async (req, res) => {
           currency: escrow.currency,
           stripeChargeId: pi.latest_charge || pi.id,
           processedAt: new Date(),
-        });
+        }).onConflictDoNothing();
 
-        logger.info({ escrowId, paymentIntent: pi.id }, "Escrow funded via webhook");
+        if (escrow.status === "INITIATED") {
+          await db.update(escrowAccounts)
+            .set({ status: "FUNDED", updatedAt: new Date() })
+            .where(and(eq(escrowAccounts.id, escrowId), eq(escrowAccounts.status, "INITIATED")));
+        }
+        logger.info({ escrowId, paymentIntent: pi.id, event: event.type }, "Escrow payment state processed");
         break;
       }
 
@@ -72,7 +89,7 @@ router.post("/", async (req, res) => {
         if (escrowId) {
           await db.update(escrowAccounts)
             .set({ status: "CANCELLED", notes: "Payment failed", updatedAt: new Date() })
-            .where(eq(escrowAccounts.id, escrowId));
+            .where(and(eq(escrowAccounts.id, escrowId), eq(escrowAccounts.status, "INITIATED")));
           logger.warn({ escrowId, paymentIntent: pi.id }, "Escrow payment failed");
         }
         break;

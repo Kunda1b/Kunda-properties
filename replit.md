@@ -19,7 +19,13 @@ A Gambian diaspora real-estate marketplace ported from a Vercel Turborepo into R
 
 ## Backend status
 
-The api-server is a placeholder. The 6 backend microservices in `.migration-backup/services/` depend on Prisma, Stripe, Cloudinary, Twilio, Firebase, and Smile Identity KYC — these are a follow-up task.
+The API server contains the active Express backend. Stripe, email, and KYC integrations require production configuration:
+- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and `VITE_STRIPE_PUBLISHABLE_KEY`
+- `PUBLIC_URL` and `PUBLIC_FRONTEND_URL`
+- `RESEND_API_KEY`, `EMAIL_FROM`
+- `UPLOAD_ALLOWED_HOSTS` for controlled document hosting
+
+The original microservices remain in `.migration-backup/` for reference.
 
 ## Brand
 
@@ -33,3 +39,4 @@ The api-server is a placeholder. The 6 backend microservices in `.migration-back
 - Keep custom Tailwind colors in `@theme inline` blocks (v4 syntax), not `tailwind.config.js`
 - Use wouter for routing in all React apps
 - API calls use relative `/api` base (routed by Replit proxy to api-server)
+- Browser authentication uses HttpOnly cookies; configure `CORS_ORIGINS` explicitly in production

@@ -37,7 +37,9 @@ export function generateTokens(userId: string, role: string) {
 
 export function verifyAccessToken(token: string): TokenPayload {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    const payload = jwt.verify(token, JWT_SECRET) as TokenPayload;
+    if (payload.type !== "access" || typeof payload.sub !== "string" || typeof payload.role !== "string") throw new Error("invalid claims");
+    return payload;
   } catch (err) {
     if (err instanceof jwt.TokenExpiredError)
       throw new AppError("Access token expired", 401, "TOKEN_EXPIRED");
@@ -47,7 +49,9 @@ export function verifyAccessToken(token: string): TokenPayload {
 
 export function verifyRefreshToken(token: string): TokenPayload {
   try {
-    return jwt.verify(token, JWT_REFRESH_SECRET) as TokenPayload;
+    const payload = jwt.verify(token, JWT_REFRESH_SECRET) as TokenPayload;
+    if (payload.type !== "refresh" || typeof payload.sub !== "string" || typeof payload.role !== "string") throw new Error("invalid claims");
+    return payload;
   } catch (err) {
     if (err instanceof jwt.TokenExpiredError)
       throw new AppError("Refresh token expired", 401, "TOKEN_EXPIRED");

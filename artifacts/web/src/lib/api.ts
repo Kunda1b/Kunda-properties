@@ -9,6 +9,7 @@ export const api = axios.create({
   baseURL: `${BASE_URL}/api`,
   timeout: 30000,
   headers: { "Content-Type": "application/json" },
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
@@ -28,7 +29,7 @@ api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !String(originalRequest.url || "").includes("/auth/refresh")) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => { failedQueue.push({ resolve, reject }); }).then((token) => {
           originalRequest.headers = { ...originalRequest.headers, Authorization: `Bearer ${token}` };
@@ -63,7 +64,7 @@ api.interceptors.response.use(
 export const authApi = {
   register: (d: any) => api.post("/auth/register", d),
   login: (d: any) => api.post("/auth/login", d),
-  logout: () => api.post("/auth/logout"),
+  logout: () => api.post("/auth/logout", { refreshToken: useAuthStore.getState().refreshToken }),
   getMe: () => api.get("/auth/me"),
   verifyEmail: (t: string) => api.get(`/auth/verify-email/${t}`),
   forgotPassword: (e: string) => api.post("/auth/forgot-password", { email: e }),

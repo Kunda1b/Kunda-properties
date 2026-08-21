@@ -1,4 +1,8 @@
 -- Migration: Add new columns to listings
+-- Keep the Drizzle enum and the deployed database in sync.
+ALTER TYPE property_status ADD VALUE IF NOT EXISTS 'REJECTED';
+CREATE UNIQUE INDEX IF NOT EXISTS escrow_stripe_pi_idx ON escrow_accounts(stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS transaction_stripe_charge_idx ON transactions(stripe_charge_id) WHERE stripe_charge_id IS NOT NULL;
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP;
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS verified_by_id TEXT REFERENCES users(id);
